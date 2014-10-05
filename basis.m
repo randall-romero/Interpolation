@@ -104,10 +104,14 @@ classdef basis < handle
             % unidimensional basis are combined:
             %
             % * |opts.method|:  ('tensor'), 'smolyak', 'complete', 'cluster', or 'zcluster'
-            % * |opts.degreeParam|: adjust polynomial degrees for all methods (except
-            % 'tensor'), default is 3 for 'smolyak' and max(n-1) otherwise.
             % * |opts.nodeParam|: adjust selection of nodes, for methods 'smolyak',
-            % 'cluster', and 'zcluster', default is 3 for 'smolyak', 0 otherwise.
+            % 'cluster', and 'zcluster', default is 2 for 'smolyak', 0 otherwise.            
+            % * |opts.degreeParam|: adjust polynomial degrees for all methods (except
+            % 'tensor'), default is nodeParam for 'smolyak' and max(n-1) otherwise.
+            %
+            % For Smolyak grids, if nodeParam and degreeParam are scalars, the function
+            % returns an isotropic grid. If these parameters are 1.d vectors, then the
+            % function builds a anisotropic grid.  Refer to Judd et al 2014 for details.
             %
             % As of October 4, 2014 the methods 'cluster' and 'zcluster' are only
             % experimental.
@@ -180,8 +184,8 @@ classdef basis < handle
                                 end
                                 
                                 % set default parameters
-                                if ~isfield(opts,'nodeParam'), opts.nodeParam = 3; end
-                                if ~isfield(opts,'degreeParam'), opts.degreeParam = 3; end
+                                if ~isfield(opts,'nodeParam'), opts.nodeParam = 2; end
+                                if ~isfield(opts,'degreeParam'), opts.degreeParam = opts.nodeParam; end
                                 
                             case {'complete','cluster','zcluster'}
                                 if ~isfield(opts,'nodeParam'), opts.nodeParam = 0; end
@@ -348,7 +352,17 @@ classdef basis < handle
                     
                     %%%
                     % Select Smolyak bases
-                    validPhi = (sum(phiGroupAll,2)<= B.d + B.opts.degreeParam);
+                    if isscalar (B.opts.degreeParam)
+                        %isotropic grid
+                        validPhi = (sum(phiGroupAll,2)<= B.d + B.opts.degreeParam);
+                    else
+                        %anisotropic grid
+                        mu = max(B.opts.degreeParam);
+                        
+                        validPhi = (sum(phiGroupAll,2)<= B.d + mu) & ...
+                            all(phiGroupAll <= repmat(B.opts.degreeParam + 1, prod(B.n),1),2);
+                    end
+                        
                     B.opts.validPhi = idxAll(validPhi,:);  % index of entries
                     
                     
@@ -373,8 +387,18 @@ classdef basis < handle
                     groups_tensor = gridmake(groups{:});
                     
                     %%%
-                    % Select Smolyak nodes                                        
-                    validNodes = (sum(groups_tensor,2)<= B.d + B.opts.nodeParam);
+                    % Select Smolyak nodes, 
+                    
+                    if isscalar(B.opts.nodeParam)
+                        %isotropic grid                 
+                        validNodes = (sum(groups_tensor,2)<= B.d + B.opts.nodeParam);
+                    else
+                        %anisotropic grid
+                        mu = max(B.opts.nodeParam);
+                        
+                        validNodes = (sum(groups_tensor,2)<= B.d + mu)  &...
+                            all(groups_tensor <= repmat(B.opts.nodeParam + 1, prod(B.n),1),2);
+                    end
                     
                     B.nodes = nodes_tensor(validNodes,:);
                     B.opts.validX = idxAll(validNodes,:);  % index of entries
