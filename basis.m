@@ -1,10 +1,11 @@
 %% basis class
-% Defines a class to represent a multi-dimensional collocation basis 
+% Defines a class to represent a multi-dimensional collocation basis
 %
-% Objects created by this class are of type 'handle', useful for passing the basis by reference.
+% Objects created by this class are of type 'handle', useful for passing the basis by
+% reference.
 %
-% This class is defined to combine _d_ unidimensional bases into a multidimensional one. The unidimensional basis is
-% defined as any of these bases:
+% This class is defined to combine _d_ unidimensional bases into a multidimensional one.
+% The unidimensional basis is defined as any of these bases:
 %
 % * basisChebyshev
 % * basisSpline
@@ -14,43 +15,41 @@
 %
 % * |d|:    scalar, dimension of basis
 % * |n|:    1.d vector of integers, number of nodes per dimension
-% * |a|:    1.d vector, lower bounds of variables 
+% * |a|:    1.d vector, lower bounds of variables
 % * |b|:    1.d vector, upper bounds of variables
 % * |B1|:   1.d array of unidimensional bases
-% * |varname|: 	1.d cell of strings, variable names
 % * |nodes|: matrix with d columns,basis nodes
-% * |opts|: structure with options for chosen type
-% * |expansion|: structure with options for combaning the 1-bases
+% * |opts|:  structure with options for chosen type
 % * |type|:  basis type, i.e. 'cheb','spli', or 'lin'
 %
 % Object of class |basis| have the following methods:
 %
 % * |basis|: class constructor
-% * |Interpolation|: returns the interpolation matrix
-% * |Evaluate|: evaluates the interpolated function
-% * |Jacobian|: computes the Jacobian at given values of variables
-% * |Hessian|: computes the Hessian at given values of variables
-% * |nearestNode|: returns the basis node that is closest to input argument
 % * |ExpandBasis|: computes auxilliary fields needed for combining the d 1-basis
+% * |Interpolation|: returns the interpolation matrix
+% * |nearestNode|: returns the basis node that is closest to input argument
 % * |plot|: plots the basis functions for each dimension
-% * |display|: prints a summary of the basis
+% * |disp|: prints a summary of the basis
+% * |WarnOutOfBounds|: change behavior of basis if extrapolating
 % 
 %
-% *To date, only basisChebyshev has been implemented*, so calling the function with |type| 'spli' or 'lin' returns an
-% error.
+% *To date, only basisChebyshev has been implemented*, so calling the function with |type|
+% 'spli' or 'lin' returns an error.
 %
-% Implemented by:
+% Last updated: October 4, 2014.
 %
-% * *Randall Romero-Aguilar*
-% * |randall.romero@outlook.com|
-% * Last updated: September 23, 2014
+%
+% Copyright (C) 2013-2014 Randall Romero-Aguilar
+%
+% Licensed under the MIT license, see LICENSE.txt
 
 
 
 
 
 
-%% IMPLEMENTATION
+
+%% 
 classdef basis < handle
     
     properties (SetAccess = protected)
@@ -59,107 +58,150 @@ classdef basis < handle
         a           % lower bounds
         b           % upper bounds
         B1          % 1.d array of one-dimensional bases
-        varname     % variable names
         nodes       % nodes for d-dimensions
         opts        % options for basis of given type
-        expansion   % options to expand basis
-        type        % 'cheb','spli', or 'lin'
+        type        % type of basis
     end
     
-    %% ===== Methods =====
+    
 
     methods
         
         %% basis
         function B = basis(...
-                type,...        string, type of basis
                 n,...           1.d, number of nodes
                 a,...           1.d, lower bounds
                 b,...           1.d, upper bounds
-                varname,...     1.d cell of strings, variable names
-                opts,...        structure with option for type of basis
-                expansion)%     structure with options parameters
+                opts)%     structure with options parameters
             %%% 
             % Constructor for basis
             %
-            %   B = basis(type,n,a,b,varname,opts,expansion)
+            %   B = basis(n,a,b,opts)
             % 
             % The following inputs are required:
             %
-            % * |type|: 'cheb','spli', or 'lin'
-            % * |n|: 1.d vector of integers, number of nodes
+            % * |n|: scalar or 1.d vector of integers, number of nodes
             % * |a|: 1.d vector, lower bounds
             % * |b|: 1.d vector, upper bounds
             %
-            % Optional inputs
+            % The optional input |opts| is a structure with optional fields (default
+            % values in parenthesis).
+            %
+            % To choose the type of basis and to set names for its dimensions:
+            %
+            % * |opts.type|: ('cheb'),'spli', or 'lin'; type of basis
+            % * |opts.varnames|: 1.d cell of strings, variable names ({'V1',V2'...})
             % 
-            % * |varname|: 1.d cell of strings, variable names
-            % * |opts|: structure, options for specific basis |type|
-            % * |expansion|: structure, options for expanding the basis
+            % For Chebyshev basis, the type of nodes is specified by
             %
-            % Options passed on structure |opts| depend on basis |type|:
+            % * |opts.nodetype|: 'lobatto', ('gaussian') or 'endpoint'
             %
-            % * |'cheb'|:  |opts.nodetype| is either 'lobatto','gaussian' (default) or 'endpoint'
-            % * |'spli'|:  |opts.order| is order of spline, (default = 3)
+            % For Splines, the order of the piecewise polynomials is set by
             %
-            % Options passed on structure |expansion|
+            % * |opts.order|: a positive integer,  (3)
             %
-            % * |expansion.method|: is either 'tensor' (default), 'smolyak', 'complete', 'cluster', or 'zcluster'
-            % * |expansion.degreeParam|: adjust polynomial degrees for all methods (except 'tensor')
-            % * |expansion.nodeParam|: adjust selection of nodes, for methods 'smolyak', 'cluster', and 'zcluster'
+            % For multidimensional basis, the following options control how the
+            % unidimensional basis are combined:
             %
-            % As of September 23, 2014 the methods 'cluster' and 'zcluster' are only experimental.
+            % * |opts.method|:  ('tensor'), 'smolyak', 'complete', 'cluster', or 'zcluster'
+            % * |opts.degreeParam|: adjust polynomial degrees for all methods (except
+            % 'tensor'), default is 3 for 'smolyak' and max(n-1) otherwise.
+            % * |opts.nodeParam|: adjust selection of nodes, for methods 'smolyak',
+            % 'cluster', and 'zcluster', default is 3 for 'smolyak', 0 otherwise.
+            %
+            % As of October 4, 2014 the methods 'cluster' and 'zcluster' are only
+            % experimental.
+            
+            %%%
+            % Empty constructor
+            if nargin==0
+                return
+            end
+            
             
             %%%
             % Basis dimension
             
-            B.d = numel(n);
+            B.d = numel(a);
             
             %%%
-            % Default values
-            
-            if nargin < 5 || isempty(varname)
-                varname = strcat('V',num2cell(48 + (1:B.d)));
+            % Use same number of nodes in all dimensions, if n = scalar
+            if isscalar(n) 
+                n = n*ones(1,B.d);
             end
             
             
-            switch lower(type)
+            if any(a>=b)
+                error('Lower bounds must be less than upper bounds: a < b')
+            end
+            
+            %%% 
+            % Default values for optional inputs
+            
+            if nargin < 4
+                opts = struct();
+            end
+            
+            if isfield(opts,'type')
+                temptype = lower(opts.type);
+                opts.type = temptype(1:4);
+            else
+                opts.type = 'cheb';
+            end
+            
+            
+            if ~isfield(opts,'varnames'), opts.varnames = strcat('V',num2cell(48 + (1:B.d)));end
+            
+            switch opts.type
                 case 'cheb'
-                    if nargin < 6 || isempty(opts)
-                        opts.nodetype = 'gaussian';
-                    end
+                    % Set default type of nodes
+                    if ~isfield(opts,'nodetype'), opts.nodetype = 'gaussian'; end
                     
-                    if nargin <7
-                        expansion.method = 'tensor';
-                    end
-                    
-                    % Adjust number of Smolyak nodes, if selected
-                    if strcmp(expansion.method,'smolyak')
-                        n_old = n;
-                        n = 2.^ceil(log2(n_old-1))+1;
-                        if any(n-n_old)
-                            warning('For Smolyak expansion, number of nodes adjusted as follows')
-                            fprintf('\t%6s, %6s\n','Old n','New n')
-                            fprintf('\t%6d, %6d\n',[n_old;n])
-                        end
+                    % If more than one dimension
+                    if B.d >1
+                        if ~isfield(opts,'method'), opts.method = 'tensor'; end
                         
-                        if isempty(opts.nodetype) || ~strcmp(opts.nodetype,'lobatto')
-                            warning('nodetype must be ''lobatto'' for Smolyak nodes')
-                            opts.nodetype = 'lobatto';
+                        switch opts.method
+                            case 'smolyak'
+                                % Adjust number of nodes, as needed
+                                n_old = n;
+                                n = 2.^ceil(log2(n_old-1))+1;
+                                if any(n-n_old)
+                                    warning('basis:SmolyakNumberOfNodes','For Smolyak expansion, number of nodes should be n=2^k + 1,for some k = 1,2,...')
+                                    fprintf('Adjusting number of nodes\n')
+                                    fprintf('\t%6s, %6s\n','Old n','New n')
+                                    fprintf('\t%6d, %6d\n',[n_old;n])
+                                end
+                                
+                                % adjust nodetype
+                                if  ~strcmp(opts.nodetype,'lobatto')
+                                    warning('basis:SmolyakNodetype','nodetype must be ''lobatto'' for Smolyak nodes')
+                                    opts.nodetype = 'lobatto';
+                                end
+                                
+                                % set default parameters
+                                if ~isfield(opts,'nodeParam'), opts.nodeParam = 3; end
+                                if ~isfield(opts,'degreeParam'), opts.degreeParam = 3; end
+                                
+                            case {'complete','cluster','zcluster'}
+                                if ~isfield(opts,'nodeParam'), opts.nodeParam = 0; end
+                                if ~isfield(opts,'degreeParam'), opts.degreeParam = max(n)-1; end
+                                
+                            
                         end
                     end
-                    
-                otherwise
-                    error('method not yet implemented')
             end
+                    
+                    
+               
             
             %%%
             % Create the 1-basis
                         
-            switch lower(type)
+            switch opts.type
                 case 'cheb'
                     for i = 1: B.d
-                        B1(i) = basisChebyshev(n(i),a(i),b(i),opts.nodetype,varname{i});
+                        B1_(i) = basisChebyshev(n(i),a(i),b(i),opts.nodetype,opts.varnames{i});
                     end
                 otherwise
                     error('Method not yet implemented')
@@ -167,21 +209,47 @@ classdef basis < handle
                         
             %%%
             % Pack values in object
-            B.type = lower(type);
-            B.B1 = B1;
+            
+            
             B.a = a;
             B.b = b;
             B.n = n;
-            B.varname = varname;
-            B.opts.nodetype = B1(1).nodetype;
-            B.expansion = expansion;
+            B.B1 = B1_;
+            B.type = opts.type;
+            B.opts.nodetype = B1_(1).nodetype;
+            B.opts = opts;
             B.ExpandBasis;
         end %basis
         
         
+        %% WarnOutOfBounds
+        function WarnOutOfBounds(B,value)
+            %%%
+            % B.WarnOutOfBounds(bool)
+            %
+            % If bool = true, B.Interpolation(x) will throw an error if extrapolating
+            % (i.e., evaluating outside the interpolation hipercube [B.a, B.b]).
+            % Otherwise, the function will continue without warning.
+            
+            [B.B1.WarnOutOfBounds]  = deal(logical(value));
+        end
         
         
         
+        %% copy
+        function F =copy(B)
+            switch class(B)
+                case 'basis'
+                    F = basis;
+                case 'funcApprox'
+                    F = funcApprox;
+            end
+            
+            for s = fieldnames(B)'
+                s1 = char(s);
+                F.(s1) = B.(s1);
+            end
+        end
         
         %% ExpandBasis
         function ExpandBasis(B)
@@ -193,21 +261,21 @@ classdef basis < handle
             % such is not directly needed by the user. |ExpandBasis| updates the following fields in basis |B|:
             %
             % * |B.nodes|: matrix with all nodes, one column by dimension
-            % * |B.expansion.validPhi|: indices to combine unidimensional bases
-            % * |B.expansion.validX|: indices to combine unidimensional nodes
+            % * |B.opts.validPhi|: indices to combine unidimensional bases
+            % * |B.opts.validX|: indices to combine unidimensional nodes
             %
-            % Combining polynomials depends on value of input |expansion.method|:
+            % Combining polynomials depends on value of input |opts.method|:
             %
             % * |'tensor'| takes all possible combinations,
-            % * |'smolyak'| computes Smolyak basis, given |expansion.degreeParam|,
+            % * |'smolyak'| computes Smolyak basis, given |opts.degreeParam|,
             % * |'complete'|, |'cluster'|, and |'zcluster'| choose polynomials with degrees not exceeding
-            % |expansion.degreeParam|
+            % |opts.degreeParam|
             %
-            % Expanding nodes depends on value of field |expansion.method|. 
+            % Expanding nodes depends on value of field |opts.method|. 
             %
             % * 'tensor' and 'complete' take all possible combinations, 
-            % * 'smolyak' computes Smolyak basis, given |expansion.nodeParam|
-            % * 'cluster' and 'zcluster' compute clusters of the tensor nodes based on |B.expansion.nodeParam|
+            % * 'smolyak' computes Smolyak basis, given |opts.nodeParam|
+            % * 'cluster' and 'zcluster' compute clusters of the tensor nodes based on |B.opts.nodeParam|
             
             
             %%%
@@ -225,20 +293,20 @@ classdef basis < handle
             %%%
             % Expanding bases: 
             
-            switch lower(B.expansion.method)
+            switch lower(B.opts.method)
                 case 'tensor'
-                    B.expansion.validPhi = deg_grid + 1;
+                    B.opts.validPhi = deg_grid + 1;
                     
                 case {'complete','cluster','zcluster'}
                     deg = sum(deg_grid,2);  % degrees of all possible column products
-                    degValid = (deg <= B.expansion.degreeParam);
+                    degValid = (deg <= B.opts.degreeParam);
                     idx = deg_grid + 1;  % index of entries
-                    B.expansion.validPhi = idx(degValid,:);
+                    B.opts.validPhi = idx(degValid,:);
                     
                 case 'smolyak'
-                    if B.expansion.nodeParam < B.expansion.degreeParam
+                    if B.opts.nodeParam < B.opts.degreeParam
                         warning('Smolyak degree param cannot be bigger than node param; adjusting degree');
-                        B.expansion.degreeParam = B.expansion.nodeParam;
+                        B.opts.degreeParam = B.opts.nodeParam;
                     end
                     
                     
@@ -282,8 +350,8 @@ classdef basis < handle
                     xGroupAll = gridmake(groups{:});
                     phiGroupAll = gridmake(sortedGroups{:});
                     
-                    validNodes = (sum(xGroupAll,2)<= B.d + B.expansion.nodeParam);
-                    validPhi = (sum(phiGroupAll,2)<= B.d + B.expansion.degreeParam);
+                    validNodes = (sum(xGroupAll,2)<= B.d + B.opts.nodeParam);
+                    validPhi = (sum(phiGroupAll,2)<= B.d + B.opts.degreeParam);
                     
                     for i=1:B.d
                         B.nodes(:,i) = nodesAll(validNodes,i);
@@ -301,8 +369,8 @@ classdef basis < handle
                     end
                     
                     
-                    B.expansion.validX = idxAll(validNodes,:);  % index of entries
-                    B.expansion.validPhi = idxAll(validPhi,:);  % index of entries
+                    B.opts.validX = idxAll(validNodes,:);  % index of entries
+                    B.opts.validPhi = idxAll(validPhi,:);  % index of entries
                     
                     
                 otherwise
@@ -314,21 +382,21 @@ classdef basis < handle
             %%%
             % Expanding nodes
             
-            switch lower(B.expansion.method)
+            switch lower(B.opts.method)
                 case {'tensor', 'complete'}
                     B.nodes = gridmake({B.B1.nodes});
-                    B.expansion.validX = idxAll;  % index of entries
+                    B.opts.validX = idxAll;  % index of entries
                     
                 case 'smolyak'
                     % done in previous switch
                     
                 case {'cluster','zcluster'}
-                    H = size(B(1).expansion.validPhi,1) + B.expansion.nodeParam;  % number of clusters
+                    H = size(B.opts.validPhi,1) + B.opts.nodeParam;  % number of clusters
                     
                     
                     tempNodes = gridmake({B.B1.nodes});
                     
-                    if strcmp(B.expansion.method,'cluster')
+                    if strcmp(B.opts.method,'cluster')
                         [~,Nodes] = kmeans(tempNodes,H);
                     else
                         IDX = kmeans(zscore(tempNodes),H);
@@ -354,16 +422,21 @@ classdef basis < handle
         
         
         
-        %% display
-        function display(B)  
+        %% disp
+        function disp(B)  
             %%%
             % Prints a summary of the basis
-                        
-            fprintf('\nBasis of %1.0f dimension(s)\n\n',B.d)
+            
+            switch class(B)
+                case 'basis'
+                    fprintf('\nBasis of %1.0f dimension(s)\n\n',B.d)
+                case 'funcApprox'
+                    fprintf('\nFunction approximation for f:A --> B, where\n\t A < R^%d and B < R^%d\n\n',B.d,B.df)
+            end
             
             fprintf('\t%-22s %-12s %-16s\n','    Variable','# of nodes','    Interval')
             for i=1:B.d
-                fprintf('\t%-22s     %-8.0f [%6.2f, %6.2f]\n',B.varname{i},B.n(i),...
+                fprintf('\t%-22s     %-8.0f [%6.2f, %6.2f]\n',B.opts.varnames{i},B.n(i),...
                     B.a(i),B.b(i))
             end
             
@@ -371,9 +444,9 @@ classdef basis < handle
             fprintf('\t%-22s %-12s\n','Type of nodes:',B.opts.nodetype)
             
             if B.d>1
-                fprintf('\t%-22s %-12s\n','Expansion method:',B.expansion.method)
-                fprintf('\t%-22s %-12.0f\n','Total basis nodes:',size(B.expansion.validX,1))
-                fprintf('\t%-22s %-12.0f\n','Total basis functions:',size(B.expansion.validPhi,1))
+                fprintf('\t%-22s %-12s\n','Expansion method:',B.opts.method)
+                fprintf('\t%-22s %-12.0f\n','Total basis nodes:',size(B.opts.validX,1))
+                fprintf('\t%-22s %-12.0f\n','Total basis functions:',size(B.opts.validPhi,1))
             end
             fprintf('\n\n')
         end
@@ -462,18 +535,18 @@ classdef basis < handle
             %%%
             % HANDLE NODES DIMENSION
             if isempty(x)
-                switch B.expansion.method
+                switch B.opts.method
                     case {'cluster' 'zcluster'}
                         x = B.nodes;
                         nrows = size(x,1);
                     otherwise
-                        nrows = size(B.expansion.validX,1);
-                        r = B.expansion.validX;    % combine default basis nodes
+                        nrows = size(B.opts.validX,1);
+                        r = B.opts.validX;    % combine default basis nodes
                 end
                 
             elseif iscell(x)
                 nrows = prod(cellfun(@(v) numel(v),x));
-                r = B.expansion.validX;    % combine vectors in x
+                r = B.opts.validX;    % combine vectors in x
             else % ismatrix(x)
                 nrows = size(x,1);
                 r = repmat((1:size(x,1))',1,B.d); %use columns of matrix x
@@ -482,7 +555,7 @@ classdef basis < handle
             
             %%% 
             % HANDLE POLYNOMIALS DIMENSION
-            c = B.expansion.validPhi;
+            c = B.opts.validPhi;
             ncols = size(c,1);
             
             %%%
@@ -510,211 +583,6 @@ classdef basis < handle
             Phi = prod(PHI,4);
  
         end % Interpolation
-        
-        
-        %% Evaluate
-        function y = Evaluate(B,...
-                coef,...    interpolation coefficiens
-                varargin... inputs for interpolation method
-                )
-            %%%
-            %   y = B.Evaluate(coef,x,order,integrate)
-            %
-            % Evaluates the interpolated functions defined by basis |B| and coefficients |coef|. Inputs |x|, |order| and
-            % |integrate| are as required by <Interpolation> method, while |coef| is a g.m matrix (g basis functions and
-            % m interpolated functions)
-            %
-            % Output |y| returns the interpolated functions as a k.m.h array, where k is the number of evaluation
-            % points, m the number of functions (number of columns in |coef|), and h is number of order derivatives.
-            
-            
-            if nargin <2, error('Missing ''coef'' input'), end
-            Phi = B.Interpolation(varargin{:});
-            
-            nx = size(Phi,1);  % number of evaluation points
-            ny = size(coef,2); % number of evaluated functions
-            no = size(Phi,3);  % number of order evaluations
-            
-            y = zeros(nx,ny,no);
-            
-            for h = 1:no
-                y(:,:,h) = Phi(:,:,h) * coef;
-            end
-            
-            if ny==1  % only one function
-                y = squeeze(y);
-            end
-            
-        end %Evaluate
-        
-        
-        
-        %% Jacobian
-        function [DY,Y] = Jacobian(B,...
-                x,...      evaluation points
-                coef,...   interpolation coefficients
-                index...   optional 1.d boolean indicating if derivative wrt given dimension is required
-                )
-            %%%
-            %   [DY,Y] = B.Jacobian(x,coef,index)
-            %
-            % Computes the Jacobian of the approximated function f, for f: R^d --> R^m.
-            %
-            % Inputs:
-            %
-            % * |x|, k.d matrix of evaluation points.
-            % * |coef|, g.m matrix, interpolation coefficients, where g is the number of basis functions and m is the
-            % number of interpolated functions.
-            % * |index|, 1.d boolean, take partial derivative only wrt variables with index=true. Defaults to true(1,d).
-            %
-            % Outputs
-            %
-            % * |DY|, k.m.d1 Jacobian matrix evaluated at |x|, where d1 = sum(index)
-            % * |Y|, k.m interpolated function (same as Y = B.Evaluate(coef,x), provided for speed if both Jacobian and
-            % funcion value are required).
-            %
-            % Unlike |Evaluate|, method |Jacobian| requires the |x| argument as an explicit matrix.
-            
-            
-            %%%
-            % Check the inputs
-            Nfunc = size(coef,2);   %number of interpolated functions
-            
-            %%%
-            % Solve for the one-dimensional basis
-            
-            if B.d==1
-                if nargout == 1
-                    Phi  = B.Interpolation(x,1,false);
-                    DY = Phi * coef;
-                else
-                    Phi = B.Interpolation(x,[1;0],false);
-                    DY = Phi(:,:,1) * coef;
-                    Y = Phi(:,:,2) * coef;
-                end
-                
-                return
-            end
-            
-            %%%
-            % Solve for the multi-dimensional basis
-            
-            % Check validity of input x
-            if size(x,2)~=B.d, error('In Jacobian, class basis: x must have d columns'); end
-            
-            %%%
-            % Keep track of required derivatives: Required is logical with true indicating derivative is required
-            if nargin<4
-                Required = true(1,B.d);
-                index = 1:B.d;
-            elseif numel(index) < B.d % assume that index have scalars of the desired derivatives
-                Required = false(1,B.d);
-                Required(index) = true;
-            else % assume that index is nonzero for desired derivatives
-                Required = logical(index);
-                index = find(index);
-            end
-            
-            nRequired = sum(Required);
-            
-            %%%
-            % HANDLE NODES DIMENSION
-            Nrows = size(x,1);
-            
-            %%%
-            % HANDLE POLYNOMIALS DIMENSION
-            c = B.expansion.validPhi;
-            Ncols = size(c,1);
-            
-            %%%
-            % Compute interpolation matrices for each dimension
-            
-            Phi0 = zeros(Nrows,Ncols,B.d);
-            Phi1 = zeros(Nrows,Ncols,B.d);
-            
-            for k = 1:B.d
-                if Required(k)
-                    PhiOneDim = B.B1(k).Interpolation(x(:,k),...
-                        [0 1],...
-                        false);
-                    Phi01 = PhiOneDim(:,c(:,k),:);                   
-                    Phi0(:,:,k) = Phi01(:,:,1); % function value
-                    Phi1(:,:,k) = Phi01(:,:,2); % its derivative
-                else
-                    PhiOneDim = B.B1(k).Interpolation(x(:,k),...
-                        0,...
-                        false);
-                    Phi0(:,:,k) = PhiOneDim(:,c(:,k));
-                end
-            end
-            
-            %%%
-            % Compute the Jacobian
-            % Preallocate memory
-            DY  = zeros(Nrows,Nfunc,nRequired);
-            
-            % Multiply the 1-dimensional bases
-            
-            for k=1:nRequired
-                Phik = Phi0;
-                Phik(:,:,index(k)) = Phi1(:,:,index(k));
-                Phi = prod(Phik,3);
-                DY(:,:,k) = Phi*coef;
-            end
-            
-            %%%
-            % Compute the function if requested
-            if nargout > 1
-                Y = prod(Phi0,3)*coef;
-            end
-            
-        end % Jacobian
-        
-        
-        
-        %% Hessian
-        function Hy = Hessian(B,...
-                x,...     evaluation points
-                coef...   interpolation coefficiens
-                )
-            %%%
-            %   Hy = B.Hessian(x,coef)
-            %
-            % Computes the Hessian of a function approximated by basis |B| and coefficients |coef|.
-            %
-            % Its inputs are:
-            %
-            % * |x|, k.d matrix of evaluation points.
-            % * |coef|, g.m matrix, interpolation coefficients.
-            %
-            % Its output |Hy| returns the k.m.d.d Hessian evaluated at |x|.
-            
-            
-            order = repmat({[0 1 2]'},1,B.d);
-            order = gridmake(order{:});
-            order = order(sum(order,2)==2,:);
-            
-            Phi = B.Interpolation(x,order,false);
-            
-                      
-            nx = size(x,1);     % number of evaluated points
-            ny = size(coef,2);  % number of evaluated functions
-            
-            
-            %Dy = squeeze(Dy);
-            
-            Hy = zeros(nx,ny,B.d,B.d);
-            
-            for k = 1:size(order,1)
-                i = find(order(k,:));
-                if numel(i)==1
-                    Hy(:,:,i,i) = Phi(:,:,k) * coef;%  Dy(:,k);
-                else
-                    Hy(:,:,i(1),i(2)) = Phi(:,:,k) * coef; %Dy(:,k);
-                    Hy(:,:,i(2),i(1)) = Hy(:,:,i(1),i(2)); %Dy(:,k);
-                end
-            end
-        end % Hessian
         
         
         

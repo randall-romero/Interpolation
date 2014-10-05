@@ -21,7 +21,7 @@
 % * |SetNodes|: computes the nodes
 % * |Interpolation|: returns the interpolation matrix
 % * |DiffOperator|: computes operators for derivatives and integrals
-% * |Evaluate|: evaluates the interpolated function
+% * |Interpolate|: evaluates the interpolated function
 % * |nearestNode|: returns the basis node that is closest to input argument
 % * |plot|: plots the basis functions
 % * |display|: prints a summary of the basis
@@ -30,13 +30,14 @@
 % * |Reset|: computes nodes and deletes |D| and |I| operators
 % * Setter methods for |a|, |b|, |n|, |nodetype|: change respective value and resets the basis.
 %
-% Implemented by:
+% Last updated: October 4, 2014.
 %
-% * *Randall Romero-Aguilar*
-% * |randall.romero@outlook.com|
-% * Last updated: September 23, 2014
+%
+% Copyright (C) 2013-2014 Randall Romero-Aguilar
+%
+% Licensed under the MIT license, see LICENSE.txt
 
-%% CLASS DEFINITION
+%% 
 classdef basisChebyshev < handle
     properties (SetAccess = protected)
         nodes       % nodes for own dimension
@@ -50,12 +51,11 @@ classdef basisChebyshev < handle
         b  =  inf     % upper limits
         nodetype = 'gaussian'   % type of nodes        
         varname = 'V0'             % optional name for variable
-        WarnOutOfBounds = false    % warns if interpolating outsite [a,b] interval
+        WarnOutOfBounds = true    % warns if interpolating outsite [a,b] interval
     end
     
     
     
-    %% ===== METHODS =====
     methods
         
         
@@ -66,7 +66,8 @@ classdef basisChebyshev < handle
                 b,...           scalar, upper bound
                 nodetype,...    string, 'gaussian','endpoint', or 'lobatto'
                 varname)%       string, name for variable
-                        %%% 
+                        
+            %%% 
             % Constructor for basisChebyshev
             %
             %   B = basisChebyshev(n,a,b,nodetype,varname)
@@ -332,9 +333,10 @@ classdef basisChebyshev < handle
                 isOut = isBelow | isAbove;
                 
                 if any(isOut)
-                    fprintf('These interpolation values are out of bounds!:\n%6.2f <= %s <= %6.2f\n',B.a,B.varname,B.b)
-                    disp(x(isOut))
-                    error('Out of bounds!')
+                    xout = x(isOut);
+                    error(['OutOfBounds!: Interpolating %s = %f failed because basis defined only in [%4.2f, %4.2f]\n',...
+                        'To allow interpolation outside this interval, set basis field ''WarnOutOfBounds'' to false'],...
+                        B.varname,xout(1),B.a,B.b)
                 end
                 
                 
@@ -406,7 +408,7 @@ classdef basisChebyshev < handle
         
         
         %% Evaluate
-        function y = Evaluate(B,...      ##CompEcon:  chebbas.m
+        function y = Interpolate(B,...      ##CompEcon:  chebbas.m
                 coef,...             coefficient matrix
                 varargin...          inputs for Interpolation method
                 )
@@ -490,12 +492,13 @@ classdef basisChebyshev < handle
         function display(B)  
             %%%
             % Prints a summary of the basis
-                        
-            fprintf('\nChebyshev Basis of one dimension with %s nodes\n\n',B.nodetype)
-            
-            fprintf('\t%-22s %-12s %-16s\n','    Variable','# of nodes','    Interval')
-            fprintf('\t%-22s     %-8.0f [%6.2f, %6.2f]\n',B.varname,B.n,B.a,B.b)
-            fprintf('\n\n')
+            for i=1:numel(B)
+                fprintf('\nChebyshev Basis of one dimension with %s nodes\n\n',B(i).nodetype)
+                
+                fprintf('\t%-22s %-12s %-16s\n','    Variable','# of nodes','    Interval')
+                fprintf('\t%-22s     %-8.0f [%6.2f, %6.2f]\n',B(i).varname,B(i).n,B(i).a,B(i).b)
+                fprintf('\n\n')
+            end
         end        
         
         
