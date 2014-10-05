@@ -31,7 +31,7 @@
 % * |plot|: plots the basis functions for each dimension
 % * |disp|: prints a summary of the basis
 % * |WarnOutOfBounds|: change behavior of basis if extrapolating
-% 
+%
 %
 % *To date, only basisChebyshev has been implemented*, so calling the function with |type|
 % 'spli' or 'lin' returns an error.
@@ -49,7 +49,7 @@
 
 
 
-%% 
+%%
 classdef basis < handle
     
     properties (SetAccess = protected)
@@ -64,7 +64,7 @@ classdef basis < handle
     end
     
     
-
+    
     methods
         
         %% basis
@@ -73,11 +73,11 @@ classdef basis < handle
                 a,...           1.d, lower bounds
                 b,...           1.d, upper bounds
                 opts)%     structure with options parameters
-            %%% 
+            %%%
             % Constructor for basis
             %
             %   B = basis(n,a,b,opts)
-            % 
+            %
             % The following inputs are required:
             %
             % * |n|: scalar or 1.d vector of integers, number of nodes
@@ -91,7 +91,7 @@ classdef basis < handle
             %
             % * |opts.type|: ('cheb'),'spli', or 'lin'; type of basis
             % * |opts.varnames|: 1.d cell of strings, variable names ({'V1',V2'...})
-            % 
+            %
             % For Chebyshev basis, the type of nodes is specified by
             %
             % * |opts.nodetype|: 'lobatto', ('gaussian') or 'endpoint'
@@ -126,7 +126,7 @@ classdef basis < handle
             
             %%%
             % Use same number of nodes in all dimensions, if n = scalar
-            if isscalar(n) 
+            if isscalar(n)
                 n = n*ones(1,B.d);
             end
             
@@ -135,7 +135,7 @@ classdef basis < handle
                 error('Lower bounds must be less than upper bounds: a < b')
             end
             
-            %%% 
+            %%%
             % Default values for optional inputs
             
             if nargin < 4
@@ -187,17 +187,17 @@ classdef basis < handle
                                 if ~isfield(opts,'nodeParam'), opts.nodeParam = 0; end
                                 if ~isfield(opts,'degreeParam'), opts.degreeParam = max(n)-1; end
                                 
-                            
+                                
                         end
                     end
             end
-                    
-                    
-               
+            
+            
+            
             
             %%%
             % Create the 1-basis
-                        
+            
             switch opts.type
                 case 'cheb'
                     for i = 1: B.d
@@ -206,7 +206,7 @@ classdef basis < handle
                 otherwise
                     error('Method not yet implemented')
             end
-                        
+            
             %%%
             % Pack values in object
             
@@ -271,16 +271,16 @@ classdef basis < handle
             % * |'complete'|, |'cluster'|, and |'zcluster'| choose polynomials with degrees not exceeding
             % |opts.degreeParam|
             %
-            % Expanding nodes depends on value of field |opts.method|. 
+            % Expanding nodes depends on value of field |opts.method|.
             %
-            % * 'tensor' and 'complete' take all possible combinations, 
+            % * 'tensor' and 'complete' take all possible combinations,
             % * 'smolyak' computes Smolyak basis, given |opts.nodeParam|
             % * 'cluster' and 'zcluster' compute clusters of the tensor nodes based on |B.opts.nodeParam|
             
             
             %%%
             % Allocate variables
-            degs = [B.n]-1; % degree of polynomials
+            degs = B.n - 1; % degree of polynomials
             ldeg = cell(1,B.d);
             
             for i=1:B.d
@@ -291,7 +291,7 @@ classdef basis < handle
             
             
             %%%
-            % Expanding bases: 
+            % Expanding bases:
             
             switch lower(B.opts.method)
                 case 'tensor'
@@ -309,67 +309,46 @@ classdef basis < handle
                         B.opts.degreeParam = B.opts.nodeParam;
                     end
                     
-                    
-                    if ~strcmp(B.opts.nodetype,'lobatto')
-                        warning('Smolyak expansion requires Lobatto nodes')
-                    end
-                    
-                    updateIDX = false;
-                    
-                    
                     ngroups = log2(B.n-1)+1;
-                    Ngroups = max(ngroups);
+                    N = max(ngroups);
                     
-                    Nodes = cell(Ngroups,1);
-                    Nodes{1,1} = [0,1];
+                    %%%
+                    % Make grid that identifies node groups, save it in "g"
+                    k = (0:2^(N-1))';
+                    g = zeros(size(k));
                     
-                    for k =Ngroups:-1:2
-                        N(k) = 2^(k-1)+1;
-                        Nodes{k,1} = [...
-                            -cos(pi*((1:N(k))'-1)/(N(k)-1)),... %the nodes (with repetition as k changes)
-                            repmat(k,N(k),1)];   % group number
+                    p2 = 2;
+                    for it=N:-1:3
+                        odds = logical(mod(k,p2));
+                        g(odds) = it;
+                        k(odds) = 0;
+                        p2 = 2*p2;
                     end
                     
-                    Nodes = cell2mat(Nodes);
-                    Nodes(abs(Nodes(:,1))<eps) = 0;
+                    g(1) = 2;
+                    g(end) = 2;
+                    g((1+end)/2) = 1;
+                    
+                    clear k p2 it N
                     
                     
-                    nodes1 = cell(1,B.d);
+                    %%%
+                    % Make disjoint sets
                     groups = cell(1,B.d);
                     sortedGroups = cell(1,B.d);
                     
                     for i=1:B.d
-                        validGroup = Nodes(:,2)<= ngroups(i);
-                        [nodes1{1,i},idtemp] = unique(Nodes(validGroup,1),'first');
-                        groups{1,i} = Nodes(idtemp,2);
+                        groups{1,i} = g(g <= ngroups(i));
                         sortedGroups{1,i} = sort(groups{1,i});
                     end
                     
-                    
-                    nodesAll = gridmake({B.B1.nodes});
-                    xGroupAll = gridmake(groups{:});
+                    %%%
+                    % Tensor product of polynomial groups
                     phiGroupAll = gridmake(sortedGroups{:});
                     
-                    validNodes = (sum(xGroupAll,2)<= B.d + B.opts.nodeParam);
+                    %%%
+                    % Select Smolyak bases
                     validPhi = (sum(phiGroupAll,2)<= B.d + B.opts.degreeParam);
-                    
-                    for i=1:B.d
-                        B.nodes(:,i) = nodesAll(validNodes,i);
-                    end
-                    
-                    if updateIDX
-                        degs = [B.n]-1; % degree of polynomials
-                        ldeg = cell(1,B.d);
-                        
-                        for i=1:B.d
-                            ldeg{i} = (0:degs(i))';
-                        end
-                        deg_grid = gridmake(ldeg{:});   %degree of polynomials
-                        idxAll = deg_grid + 1;   % index of elements
-                    end
-                    
-                    
-                    B.opts.validX = idxAll(validNodes,:);  % index of entries
                     B.opts.validPhi = idxAll(validPhi,:);  % index of entries
                     
                     
@@ -380,27 +359,35 @@ classdef basis < handle
             
             
             %%%
-            % Expanding nodes
+            % Expanding nodes: tensor product of nodes            
+            nodes_tensor = gridmake({B.B1.nodes});
             
             switch lower(B.opts.method)
                 case {'tensor', 'complete'}
-                    B.nodes = gridmake({B.B1.nodes});
+                    B.nodes = nodes_tensor;
                     B.opts.validX = idxAll;  % index of entries
                     
                 case 'smolyak'
-                    % done in previous switch
+                    %%% 
+                    % Make tensor grid of groups
+                    groups_tensor = gridmake(groups{:});
+                    
+                    %%%
+                    % Select Smolyak nodes                                        
+                    validNodes = (sum(groups_tensor,2)<= B.d + B.opts.nodeParam);
+                    
+                    B.nodes = nodes_tensor(validNodes,:);
+                    B.opts.validX = idxAll(validNodes,:);  % index of entries
+                    
                     
                 case {'cluster','zcluster'}
                     H = size(B.opts.validPhi,1) + B.opts.nodeParam;  % number of clusters
                     
-                    
-                    tempNodes = gridmake({B.B1.nodes});
-                    
                     if strcmp(B.opts.method,'cluster')
-                        [~,Nodes] = kmeans(tempNodes,H);
+                        [~,Nodes] = kmeans(nodes_tensor,H);
                     else
-                        IDX = kmeans(zscore(tempNodes),H);
-                        Nodes = grpstats(tempNodes,IDX,'mean');
+                        IDX = kmeans(zscore(nodes_tensor),H);
+                        Nodes = grpstats(nodes_tensor,IDX,'mean');
                     end
                     
                     
@@ -423,7 +410,7 @@ classdef basis < handle
         
         
         %% disp
-        function disp(B)  
+        function disp(B)
             %%%
             % Prints a summary of the basis
             
@@ -471,7 +458,7 @@ classdef basis < handle
         end
         
         
-       
+        
         %% Interpolation
         function Phi = Interpolation(B,...
                 x,...      evaluation points
@@ -484,7 +471,7 @@ classdef basis < handle
             % Computes interpolation matrices for basis of d-dimensions. It calls the method |Interpolation| on each
             % unidimensional basis, then combines all of them.
             %
-            % Its inputs are 
+            % Its inputs are
             %
             % * |x|, k.d matrix or 1.d cell of evaluation points. Defaults to basis nodes. If cell is provided,
             % |Interpolation| is call of values from cell, and then combined (faster than running the method on the
@@ -553,7 +540,7 @@ classdef basis < handle
             end
             
             
-            %%% 
+            %%%
             % HANDLE POLYNOMIALS DIMENSION
             c = B.opts.validPhi;
             ncols = size(c,1);
@@ -561,7 +548,7 @@ classdef basis < handle
             %%%
             % Preallocate memory
             PHI = zeros(nrows,ncols,Norders,B.d);
-
+            
             %%%
             % Compute interpolation matrices for each dimension
             for j = 1:B.d
@@ -581,7 +568,7 @@ classdef basis < handle
             %%%
             % MULTIPLY individual bases
             Phi = prod(PHI,4);
- 
+            
         end % Interpolation
         
         
@@ -592,7 +579,7 @@ classdef basis < handle
             %   [xnode,idx] = nearestNode(B,x)
             %
             % For a given value x, it finds the nearest node in basis B. This method is useful in simulations, when an
-            % initial guess solution at |x| can be given by |xnode|. |idx| is the associated index, e.g. 
+            % initial guess solution at |x| can be given by |xnode|. |idx| is the associated index, e.g.
             %
             %   xnode = B.nodes(idx,:)'
             
