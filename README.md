@@ -9,7 +9,7 @@ It includes a implementation of the isotropic Smolyak algorithm, as described by
 
 
 
-# References
+### References
 * Judd, Maliar, Maliar and Valero 2014 Smolyak method for solving dynamic economic models: Lagrange interpolation, anisotropic grid and addaptive domain. Journal of Economic Dynamics & Control 44, pp. 92-13
 
 * Miranda and Fackler 2002 Applied computational economics and finance. MIT Press
