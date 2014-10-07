@@ -1,9 +1,6 @@
 %% basis class
 % Defines a class to represent a multi-dimensional collocation basis
 %
-% Objects created by this class are of type 'handle', useful for passing the basis by
-% reference.
-%
 % This class is defined to combine _d_ unidimensional bases into a multidimensional one.
 % The unidimensional basis is defined as any of these bases:
 %
@@ -31,12 +28,23 @@
 % * |plot|: plots the basis functions for each dimension
 % * |disp|: prints a summary of the basis
 % * |WarnOutOfBounds|: change behavior of basis if extrapolating
+% * |copy|: makes an independent copy (method inherited from superclass)
 %
+% *NOTE 1*: Objects created by this class are derived from the superclass
+% 'matlab.mixin.Copyable', which is equivalent to a 'handle' but adds a 'copy' method for
+% making shallow copies of the basis. For example, in copying basis B with 
+% 
+%   B1 = B
+%   B2 = B.copy
+% 
+% the B1 variable is just a reference to B (then, subsequent changes to B1 also affect B),
+% whereas B2 is a value copy of B (thus, changes to B2 will not affect B).
 %
-% *To date, only basisChebyshev has been implemented*, so calling the function with |type|
-% 'spli' or 'lin' returns an error.
+% *NOTE 2* To date, only basisChebyshev has been implemented, so calling the function with
+% |type| 'spli' or 'lin' returns an error.
+%%
 %
-% Last updated: October 4, 2014.
+% Last updated: October 6, 2014.
 %
 %
 % Copyright (C) 2013-2014 Randall Romero-Aguilar
@@ -50,7 +58,7 @@
 
 
 %%
-classdef basis < handle
+classdef basis < matlab.mixin.Copyable
     
     properties (SetAccess = protected)
         d           % dimension of basis
@@ -239,21 +247,6 @@ classdef basis < handle
         end
         
         
-        
-        %% copy
-        function F =copy(B)
-            switch class(B)
-                case 'basis'
-                    F = basis;
-                case 'funcApprox'
-                    F = funcApprox;
-            end
-            
-            for s = fieldnames(B)'
-                s1 = char(s);
-                F.(s1) = B.(s1);
-            end
-        end
         
         %% ExpandBasis
         function ExpandBasis(B)

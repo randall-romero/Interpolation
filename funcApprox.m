@@ -91,7 +91,7 @@ classdef funcApprox < basis
             %%%
             % Setting new values for fnodes also update the interpolation coefficients
             if size(value,1) ~= size(F.nodes,1)
-                error('New value for fnodes must have %d rows (1 per node)',size(F.nodes,1))
+                error('funcApprox:fnodes:size','New value for fnodes must have %d rows (1 per node)',size(F.nodes,1))
             end
             
             F.fnodes = value;
@@ -104,7 +104,7 @@ classdef funcApprox < basis
             %%% 
             % To update coefficients, the inverse interpolation matrix is premultiplied by
             % the value of the function at the nodes
-            
+            F.df = size(F.fnodes,2);
             F.coef = F.Phiinv * F.fnodes;
         end
         

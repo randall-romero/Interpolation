@@ -1,8 +1,6 @@
 %% basisChebyshev class
 % Defines a class to represent a univariate Chebyshev basis.  
 %
-% Objects of this class are of type 'handle', useful for passing the basis by reference.
-%
 % Objects of class |basisChebyshev| have the following properties:
 %
 % * |n|:    scalar, number of nodes
@@ -25,20 +23,31 @@
 % * |nearestNode|: returns the basis node that is closest to input argument
 % * |plot|: plots the basis functions
 % * |display|: prints a summary of the basis
-% * |copy|: makes an independent copy
+% * |copy|: makes an independent copy (method inherited from superclass)
 % * |CheckValidity|: checks consistency of properties
 % * |Reset|: computes nodes and deletes |D| and |I| operators
 % * Setter methods for |a|, |b|, |n|, |nodetype|: change respective value and resets the basis.
 %
-% Last updated: October 4, 2014.
+% *NOTE*: Objects created by this class are derived from the superclass
+% 'matlab.mixin.Copyable', which is equivalent to a 'handle' but adds a 'copy' method for
+% making shallow copies of the basis. For example, in copying basisChebyshev B with 
+% 
+%   B1 = B
+%   B2 = B.copy
+% 
+% the B1 variable is just a reference to B (then, subsequent changes to B1 also affect B),
+% whereas B2 is a value copy of B (thus, changes to B2 will not affect B).
 %
+%
+%
+% Last updated: October 6, 2014.
 %
 % Copyright (C) 2013-2014 Randall Romero-Aguilar
 %
 % Licensed under the MIT license, see LICENSE.txt
 
 %% 
-classdef basisChebyshev < handle
+classdef basisChebyshev < matlab.mixin.Copyable
     properties (SetAccess = protected)
         nodes       % nodes for own dimension
         D           % operators to compute derivative
@@ -119,27 +128,7 @@ classdef basisChebyshev < handle
             B.SetNodes;
             
         end %basisChebyshev1
-        
-        
-        %% copy
-        function Bcopy = copy(B)
-            %%%
-            % Bcopy = B.copy
-            %
-            % Makes a (value) copy of basis B. Since class |basisChebyshev| is a handle, in this example
-            %
-            %   B2 = B;
-            %   B3 = B.copy;
-            %   
-            %   B2.a = 0;
-            %   B3.n = 9;
-            %   
-            % the line |B2.a = 0| sets the lower limit |a| to zero in both B2 and B (B2 is just a pointer to B), whereas
-            % the line |B3.n = 9| does not modify B (on assignment, B3 is simply a copy of B, not a pointer to B).            
-                    
-            Bcopy = basisChebyshev(B.n,B.a,B.b,B.nodetype, B.varname);
-        end
-        
+               
         
         
         %% checkValidity
