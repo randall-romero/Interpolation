@@ -90,10 +90,9 @@ classdef funcApprox < basis
         function set.fnodes(F,value)
             %%%
             % Setting new values for fnodes also update the interpolation coefficients
-            if size(value,1) ~= size(F.nodes,1)
-                error('funcApprox:fnodes:size','New value for fnodes must have %d rows (1 per node)',size(F.nodes,1))
-            end
-            
+            assert(size(value,1) == size(F.nodes,1), ...
+                'funcApprox:fnodes:size',...
+                'New value for fnodes must have %d rows (1 per node)',size(F.nodes,1))
             F.fnodes = value;
             F.updateCoef;
         end
@@ -197,7 +196,7 @@ classdef funcApprox < basis
             % Solve for the multi-dimensional basis
             
             % Check validity of input x
-            if size(x,2)~=F.d, error('In Jacobian, class basis: x must have d columns'); end
+            assert(size(x,2) == F.d, 'In Jacobian, class basis: x must have d columns')
             
             %%%
             % Keep track of required derivatives: Required is logical with true indicating derivative is required

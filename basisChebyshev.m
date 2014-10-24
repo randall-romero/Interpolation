@@ -144,12 +144,12 @@ classdef basisChebyshev < matlab.mixin.Copyable
             % * n >= 2,
             % * nodetype is either 'gaussian', 'endpoint', or 'lobatto'
         
-            if ~isscalar(B.a); error('Parameter ''a'' must be scalar'); end
-            if ~isscalar(B.b); error('Parameter ''b'' must be scalar'); end
-            if ~isscalar(B.n); error('Parameter ''n'' must be scalar'); end
+            assert(isscalar(B.a), 'Parameter ''a'' must be scalar')
+            assert(isscalar(B.b), 'Parameter ''b'' must be scalar')
+            assert(isscalar(B.n), 'Parameter ''n'' must be scalar')
             
-            if B.a > B.b;  error('Lower bound must be less than upper bound'), end
-            if B.n < 2;    error('n must be greater than one'), end
+            assert(B.a < B.b, 'Lower bound must be less than upper bound')
+            assert(B.n >= 2, 'n must be greater than one')
             
             if ~ismember(lower(B.nodetype),{'gaussian' 'endpoint' 'lobatto'})
                 warning(strcat('Unknown nodetype ',B.nodetype,': using gaussian instead'))
@@ -215,7 +215,7 @@ classdef basisChebyshev < matlab.mixin.Copyable
             
             if nargin < 2, orderD = 1; end
             if nargin < 3, integrate = false; else integrate = logical(integrate); end
-            if orderD < 0, error('In DiffOperator: order must be nonnegative'), end
+            assert(orderD >= 0, 'In DiffOperator: order must be nonnegative')
             
             derivative = ~integrate;
             
@@ -412,7 +412,7 @@ classdef basisChebyshev < matlab.mixin.Copyable
             % points, m the number of functions (number of columns in |coef|), and h is number of order derivatives.
                         
             
-            if nargin<2, error('Missing ''coef'' input');end
+            assert(nargin > 1, 'Missing ''coef'' input')
                         
             Phi = B.Interpolation(varargin{:});           
             

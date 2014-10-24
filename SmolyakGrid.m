@@ -100,9 +100,9 @@ end
 
 function [newIndices,newSum] = ndgrid2(Indices,groupSum,newGroup,q,qk)
 
-if size(Indices,1) ~= numel(groupSum)
-    error('nodeIndices and groupSum must have same number of rows')
-end
+assert(size(Indices,1) == numel(groupSum),...
+    'nodeIndices and groupSum must have same number of rows')
+
 
 
 [idx,idy] = ndgrid(1:numel(groupSum), 1:numel(newGroup));

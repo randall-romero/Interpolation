@@ -143,9 +143,7 @@ classdef basis < matlab.mixin.Copyable
             end
             
             
-            if any(a>=b)
-                error('Lower bounds must be less than upper bounds: a < b')
-            end
+            assert(all(a < b), 'Lower bounds must be less than upper bounds: a < b')
             
             %%%
             % Default values for optional inputs
@@ -323,7 +321,7 @@ classdef basis < matlab.mixin.Copyable
                     degValid = (deg <= B.opts.degreeParam);
                     idx = deg_grid + 1;  % index of entries
                     B.opts.validPhi = idx(degValid,:);
-                    
+%{                    
 %                 case 'smolyak'
 %                     if B.opts.nodeParam < B.opts.degreeParam
 %                         warning('Smolyak degree param cannot be bigger than node param; adjusting degree');
@@ -381,7 +379,7 @@ classdef basis < matlab.mixin.Copyable
 %                     end
 %                         
 %                     B.opts.validPhi = idxAll(validPhi,:);  % index of entries
-                    
+%}                    
                     
                 otherwise
                     error(...
@@ -535,7 +533,7 @@ classdef basis < matlab.mixin.Copyable
             if nargin<2; x = [];             end  % evaluate at nodes
             if nargin<3 || isempty(order); order = zeros(1,B.d); end  % no derivative
             if isscalar(order); order = order*ones(1,B.d); end  % use same in all dimension
-            if any(order<0), error('order must be nonnegative'),end
+            assert(all(order>=0), 'order must be nonnegative')
             if nargin<4, integrate = false; end
             
             
@@ -553,14 +551,16 @@ classdef basis < matlab.mixin.Copyable
             
             Norders = size(order,1);
             
-            if size(order,2)~=B.d
-                error('In Interpolation, class ''basis'': order must have d columns')
-            end
+            assert(size(order,2) == B.d, 'In Interpolation, class ''basis'': order must have d columns')
             
             % Check validity of input x
             if nargin>1  % hasArg(x)
-                if (isnumeric(x) && size(x,2)~=B.d && ~isempty(x)),error('In Interpolation, class basis: x must have d columns'); end
-                if (iscell(x) && length(x)~=B.d), error('In Interpolation, class basis: x must have d elements'); end
+                if isnumeric(x) 
+                    assert(size(x,2) == B.d || isempty(x),'In Interpolation, class basis: x must have d columns');
+                end
+                if iscell(x)
+                    assert(length(x) == B.d, 'In Interpolation, class basis: x must have d elements');
+                end
             end
             
             
