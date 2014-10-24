@@ -276,6 +276,30 @@ classdef basis < matlab.mixin.Copyable
             
             
             %%%
+            % Smolyak interpolation: Now it is done by SmolyakGrid function. Previous
+            % implementation computed full tensor product and then selected the valid
+            % combinations (too expensive, out of memory error for n = 9, d = 8)
+            
+            if strcmp(B.opts.method, 'smolyak')
+                [B.opts.validX, B.opts.ValidPhi] = SmolyakGrid(...
+                    B.n,B.opts.nodeParam,B.opts.degreeParam);
+                B.nodes = zeros(size(B.opts.validX));
+                for k=1:B.d
+                    B.nodes(:,k) = B.B1(k).nodes(B.opts.validX(:,k));
+                end
+                return
+            end
+            
+            
+            
+            
+            %%%
+            % All other cases
+            
+            
+            
+            
+            %%%
             % Allocate variables
             degs = B.n - 1; % degree of polynomials
             ldeg = cell(1,B.d);
@@ -300,63 +324,63 @@ classdef basis < matlab.mixin.Copyable
                     idx = deg_grid + 1;  % index of entries
                     B.opts.validPhi = idx(degValid,:);
                     
-                case 'smolyak'
-                    if B.opts.nodeParam < B.opts.degreeParam
-                        warning('Smolyak degree param cannot be bigger than node param; adjusting degree');
-                        B.opts.degreeParam = B.opts.nodeParam;
-                    end
-                    
-                    ngroups = log2(B.n-1)+1;
-                    N = max(ngroups);
-                    
-                    %%%
-                    % Make grid that identifies node groups, save it in "g"
-                    k = (0:2^(N-1))';
-                    g = zeros(size(k));
-                    
-                    p2 = 2;
-                    for it=N:-1:3
-                        odds = logical(mod(k,p2));
-                        g(odds) = it;
-                        k(odds) = 0;
-                        p2 = 2*p2;
-                    end
-                    
-                    g(1) = 2;
-                    g(end) = 2;
-                    g((1+end)/2) = 1;
-                    
-                    clear k p2 it N
-                    
-                    
-                    %%%
-                    % Make disjoint sets
-                    groups = cell(1,B.d);
-                    sortedGroups = cell(1,B.d);
-                    
-                    for i=1:B.d
-                        groups{1,i} = g(g <= ngroups(i));
-                        sortedGroups{1,i} = sort(groups{1,i});
-                    end
-                    
-                    %%%
-                    % Tensor product of polynomial groups
-                    phiGroupAll = gridmake(sortedGroups{:});
-                    
-                    %%%
-                    % Select Smolyak bases
-                    if isscalar (B.opts.degreeParam)
-                        %isotropic grid
-                        validPhi = (sum(phiGroupAll,2)<= B.d + B.opts.degreeParam);
-                    else
-                        %anisotropic grid
-                        mu = max(B.opts.degreeParam);
-                        
-                        validPhi = (sum(phiGroupAll,2)<= B.d + mu) & ...
-                            all(phiGroupAll <= repmat(B.opts.degreeParam + 1, prod(B.n),1),2);
-                    end
-                        
-                    B.opts.validPhi = idxAll(validPhi,:);  % index of entries
+%                 case 'smolyak'
+%                     if B.opts.nodeParam < B.opts.degreeParam
+%                         warning('Smolyak degree param cannot be bigger than node param; adjusting degree');
+%                         B.opts.degreeParam = B.opts.nodeParam;
+%                     end
+%                     
+%                     ngroups = log2(B.n-1)+1;
+%                     N = max(ngroups);
+%                     
+%                     %%%
+%                     % Make grid that identifies node groups, save it in "g"
+%                     k = (0:2^(N-1))';
+%                     g = zeros(size(k));
+%                     
+%                     p2 = 2;
+%                     for it=N:-1:3
+%                         odds = logical(mod(k,p2));
+%                         g(odds) = it;
+%                         k(odds) = 0;
+%                         p2 = 2*p2;
+%                     end
+%                     
+%                     g(1) = 2;
+%                     g(end) = 2;
+%                     g((1+end)/2) = 1;
+%                     
+%                     clear k p2 it N
+%                     
+%                     
+%                     %%%
+%                     % Make disjoint sets
+%                     groups = cell(1,B.d);
+%                     sortedGroups = cell(1,B.d);
+%                     
+%                     for i=1:B.d
+%                         groups{1,i} = g(g <= ngroups(i));
+%                         sortedGroups{1,i} = sort(groups{1,i});
+%                     end
+%                     
+%                     %%%
+%                     % Tensor product of polynomial groups
+%                     phiGroupAll = gridmake(sortedGroups{:});
+%                     
+%                     %%%
+%                     % Select Smolyak bases
+%                     if isscalar (B.opts.degreeParam)
+%                         %isotropic grid
+%                         validPhi = (sum(phiGroupAll,2)<= B.d + B.opts.degreeParam);
+%                     else
+%                         %anisotropic grid
+%                         mu = max(B.opts.degreeParam);
+%                         
+%                         validPhi = (sum(phiGroupAll,2)<= B.d + mu) & ...
+%                             all(phiGroupAll <= repmat(B.opts.degreeParam + 1, prod(B.n),1),2);
+%                     end
+%                         
+%                     B.opts.validPhi = idxAll(validPhi,:);  % index of entries
                     
                     
                 otherwise
@@ -374,27 +398,27 @@ classdef basis < matlab.mixin.Copyable
                     B.nodes = nodes_tensor;
                     B.opts.validX = idxAll;  % index of entries
                     
-                case 'smolyak'
-                    %%% 
-                    % Make tensor grid of groups
-                    groups_tensor = gridmake(groups{:});
-                    
-                    %%%
-                    % Select Smolyak nodes, 
-                    
-                    if isscalar(B.opts.nodeParam)
-                        %isotropic grid                 
-                        validNodes = (sum(groups_tensor,2)<= B.d + B.opts.nodeParam);
-                    else
-                        %anisotropic grid
-                        mu = max(B.opts.nodeParam);
-                        
-                        validNodes = (sum(groups_tensor,2)<= B.d + mu)  &...
-                            all(groups_tensor <= repmat(B.opts.nodeParam + 1, prod(B.n),1),2);
-                    end
-                    
-                    B.nodes = nodes_tensor(validNodes,:);
-                    B.opts.validX = idxAll(validNodes,:);  % index of entries
+%                 case 'smolyak'
+%                     %%% 
+%                     % Make tensor grid of groups
+%                     groups_tensor = gridmake(groups{:});
+%                     
+%                     %%%
+%                     % Select Smolyak nodes, 
+%                     
+%                     if isscalar(B.opts.nodeParam)
+%                         %isotropic grid                 
+%                         validNodes = (sum(groups_tensor,2)<= B.d + B.opts.nodeParam);
+%                     else
+%                         %anisotropic grid
+%                         mu = max(B.opts.nodeParam);
+%                         
+%                         validNodes = (sum(groups_tensor,2)<= B.d + mu)  &...
+%                             all(groups_tensor <= repmat(B.opts.nodeParam + 1, prod(B.n),1),2);
+%                     end
+%                     
+%                     B.nodes = nodes_tensor(validNodes,:);
+%                     B.opts.validX = idxAll(validNodes,:);  % index of entries
                     
                     
                 case {'cluster','zcluster'}
@@ -436,9 +460,13 @@ classdef basis < matlab.mixin.Copyable
                     fprintf('\nBasis of %1.0f dimension(s)\n\n',B.d)
                 case 'funcApprox'
                     fprintf('\nFunction approximation for f:A --> B, where\n\t A < R^%d and B < R^%d\n\n',B.d,B.df)
+                    if ~isempty(B.fnames)
+                        fprintf('Functions\n')
+                        fprintf('\t%s\n',B.fnames{:})
+                    end
             end
             
-            fprintf('\t%-22s %-12s %-16s\n','    Variable','# of nodes','    Interval')
+            fprintf('\n\t%-22s %-12s %-16s\n','    Variable','# of nodes','    Interval')
             for i=1:B.d
                 fprintf('\t%-22s     %-8.0f [%6.2f, %6.2f]\n',B.opts.varnames{i},B.n(i),...
                     B.a(i),B.b(i))
