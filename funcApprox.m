@@ -157,7 +157,7 @@ classdef funcApprox < basis
         
         
         %% Jacobian
-        function [DY,Y] = Jacobian(F, x, index)
+        function [DY,Y] = Jacobian(F, x, index,permuted)
             %%%
             %   [DY,Y] = F.Jacobian(x, index)
             %
@@ -201,7 +201,7 @@ classdef funcApprox < basis
             
             %%%
             % Keep track of required derivatives: Required is logical with true indicating derivative is required
-            if nargin<3
+            if nargin<3 || isempty(index)
                 Required = true(1,F.d);
                 index = 1:F.d;
             elseif numel(index) < F.d % assume that index have scalars of the desired derivatives
@@ -211,6 +211,12 @@ classdef funcApprox < basis
                 Required = logical(index);
                 index = find(index);
             end
+            
+            if nargin<4
+                permuted = true;
+            end
+            
+            
             
             nRequired = sum(Required);
             
@@ -264,6 +270,23 @@ classdef funcApprox < basis
             if nargout > 1
                 Y = prod(Phi0,3) * F.coef;
             end
+            
+            
+            %%%
+            % Permute the Jacobian, if requested
+            %
+            % Permute the resulting Jacobian so that indices reflect "usual" 2D Jacobian, with 3rd dimension used for
+            % different observations.
+            %
+            % * i = function
+            % * j = variable wrt which function is differentiated
+            % * k = observation
+            
+            if permuted
+                Y = permute(Y, [2,3,1]);
+                DY = permute(DY, [2 3 1]); 
+            end
+            
             
         end % Jacobian
         
