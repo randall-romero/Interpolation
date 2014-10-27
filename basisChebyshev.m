@@ -152,7 +152,7 @@ classdef basisChebyshev < matlab.mixin.Copyable
             assert(B.n >= 2, 'n must be greater than one')
             
             if ~ismember(lower(B.nodetype),{'gaussian' 'endpoint' 'lobatto'})
-                warning(strcat('Unknown nodetype ',B.nodetype,': using gaussian instead'))
+                warning(['Unknown nodetype ',B.nodetype,': using gaussian instead'])
                 B.nodetype = 'gaussian';
             end
             
@@ -170,31 +170,33 @@ classdef basisChebyshev < matlab.mixin.Copyable
             % Computes the nodes of the basis |B|, depending on |B.nodetype|, which can be 'gaussian', 'endpoint',
             % or 'lobatto'. This method is called by the constructor.
                         
-            n = B.n;
-            a = B.a;
-            b = B.b;
-            
-            s=(b-a)/2;
-            m=(b+a)/2;
             
             switch B.nodetype
                 case 'gaussian'   % Gaussian nodes
-                    k = pi*(0.5:(n-0.5))';
-                    x = m-cos(k/n)*s;
+                    x = -cos(pi*(1:2*B.n-1)/(2*B.n));
                 case 'endpoint'     % Extend nodes to endpoints
-                    k = pi*(0.5:(n-0.5))';
-                    x = m-cos(k/n)*s;
-                    aa = x(1);
-                    bb = x(end);
-                    x = (bb*a-aa*b)/(bb-aa)+(b-a)/(bb-aa)*x;
+                    x = -cos(pi*(1:2*B.n-1)/(2*B.n));
+                    x = x/x(end);
                 case 'lobatto'     % Lobatto nodes
-                    k = pi*(0:(n-1))';
-                    x = m - cos(k/(n-1))*s;
+                    x = - cos(pi*(0:B.n-1)/(B.n-1));
             end
             
             x(abs(x)<eps) = 0;
-            B.nodes = x;
+            B.nodes = B.rescale2_ab(x');
         end %SetNodes
+        
+        
+
+        function z = rescale2_01(B,x)
+            z = (2/(B.b - B.a))* (x-(B.a + B.b)/2);
+        end
+        
+        
+        function x = rescale2_ab(B,z)
+            x = (B.a + B.b + (B.b-B.a)*z)/2;
+        end
+        
+        
         
         
         
@@ -233,8 +235,7 @@ classdef basisChebyshev < matlab.mixin.Copyable
             b = B.b;
             
             if(n-orderD < 2 && derivative)
-                warnmsg = strcat('Insufficient nodes: truncating order to = ',num2str(n-2));
-                warning(warnmsg)
+                warning('Insufficient nodes: truncating order to = %3d',n-2);
                 orderD = n-2;
             end
             
@@ -335,7 +336,7 @@ classdef basisChebyshev < matlab.mixin.Copyable
             % Compute order 0 interpolation matrix
             if hasArg_x || ~strcmp(B.nodetype,'gaussian') % evaluate at arbitrary nodes
                 m = length(x);
-                z = (2/(B.b - B.a))* (x-(B.a + B.b)/2);
+                z = B.rescale2_01(x);
                 bas = zeros(m,nn);
                 bas(:,1) = 1;
                 bas(:,2) = z;
