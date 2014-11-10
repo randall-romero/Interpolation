@@ -180,7 +180,7 @@ classdef basis < matlab.mixin.Copyable
                                     warning('basis:SmolyakNumberOfNodes','For Smolyak expansion, number of nodes should be n=2^k + 1,for some k = 1,2,...')
                                     fprintf('Adjusting number of nodes\n')
                                     fprintf('\t%6s, %6s\n','Old n','New n')
-                                    fprintf('\t%6d, %6d\n',[n_old;n])
+                                    fprintf('\t%6d, %6d\n',[n_old';n'])
                                 end
                                 
                                 % adjust nodetype
@@ -279,7 +279,7 @@ classdef basis < matlab.mixin.Copyable
             % combinations (too expensive, out of memory error for n = 9, d = 8)
             
             if strcmp(B.opts.method, 'smolyak')
-                [B.opts.validX, B.opts.ValidPhi] = SmolyakGrid(...
+                [B.opts.validX, B.opts.validPhi] = SmolyakGrid(...
                     B.n,B.opts.nodeParam,B.opts.degreeParam);
                 B.nodes = zeros(size(B.opts.validX));
                 for k=1:B.d
