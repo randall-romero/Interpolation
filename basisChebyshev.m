@@ -173,9 +173,9 @@ classdef basisChebyshev < matlab.mixin.Copyable
             
             switch B.nodetype
                 case 'gaussian'   % Gaussian nodes
-                    x = -cos(pi*(1:2*B.n-1)/(2*B.n));
+                    x = -cos(pi*(1:2:2*B.n-1)/(2*B.n));
                 case 'endpoint'     % Extend nodes to endpoints
-                    x = -cos(pi*(1:2*B.n-1)/(2*B.n));
+                    x = -cos(pi*(1:2:2*B.n-1)/(2*B.n));
                     x = x/x(end);
                 case 'lobatto'     % Lobatto nodes
                     x = - cos(pi*(0:B.n-1)/(B.n-1));
@@ -187,9 +187,9 @@ classdef basisChebyshev < matlab.mixin.Copyable
         
         
 
-        function z = rescale2_01(B,x)
-            z = (2/(B.b - B.a))* (x-(B.a + B.b)/2);
-        end
+%         function z = rescale2_01(B,x)
+%             z = (2/(B.b - B.a))* (x-(B.a + B.b)/2);
+%         end
         
         
         function x = rescale2_ab(B,z)
@@ -318,13 +318,13 @@ classdef basisChebyshev < matlab.mixin.Copyable
             
             % check if out of bounds
             if hasArg_x && B.WarnOutOfBounds
-                isBelow =  x < B.a - eps(B.a);
-                isAbove =  x > B.b + eps(B.b);
+                isBelow =  x < B.a - sqrt(eps(B.a));
+                isAbove =  x > B.b + sqrt(eps(B.b));
                 isOut = isBelow | isAbove;
                 
                 if any(isOut)
                     xout = x(isOut);
-                    error(['OutOfBounds!: Interpolating %s = %f failed because basis defined only in [%4.2f, %4.2f]\n',...
+                    error(['OutOfBounds!: Interpolating %s = %f failed because basis defined only in [%4.5f, %4.5f]\n',...
                         'To allow interpolation outside this interval, set basis field ''WarnOutOfBounds'' to false'],...
                         B.varname,xout(1),B.a,B.b)
                 end
@@ -336,7 +336,10 @@ classdef basisChebyshev < matlab.mixin.Copyable
             % Compute order 0 interpolation matrix
             if hasArg_x || ~strcmp(B.nodetype,'gaussian') % evaluate at arbitrary nodes
                 m = length(x);
-                z = B.rescale2_01(x);
+                
+                %z = B.rescale2_01(x);
+                z = (2/(B.b - B.a))* (x-(B.a + B.b)/2);
+              
                 bas = zeros(m,nn);
                 bas(:,1) = 1;
                 bas(:,2) = z;
@@ -385,7 +388,7 @@ classdef basisChebyshev < matlab.mixin.Copyable
                             Phi(:,:,ii) = bas(:,1:B.n-order(ii)) * B.D{order(ii)};
                         end
                     end
-                    Phi(abs(Phi)<eps(10)) = 0;
+%                    Phi(abs(Phi)<eps(10)) = 0;
                     
                 end
                 done(ii) = order(ii);
