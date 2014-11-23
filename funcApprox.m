@@ -37,8 +37,21 @@
 %%
 classdef funcApprox < basis
  
-    properties 
+    properties (Dependent)
         fnodes  % value of functions at nodes
+        coef    % interpolation coefficients
+        df      % number of functions
+    end
+    
+    properties (Access = private)
+       fnodes_  
+       coef_
+       fnodes_is_outdated
+       coef_is_outdated
+    end
+    
+    
+    properties     
         fnames  % names for functions
     end
     
@@ -46,9 +59,9 @@ classdef funcApprox < basis
     properties (SetAccess = protected)
         Phi     % interpolation matrix
         Phiinv  % inverse of interpolation matrix 
-        df      % number of functions
-        coef    % interpolation coefficients
     end
+    
+    
     
     
     methods
@@ -70,41 +83,94 @@ classdef funcApprox < basis
                 return
             end
             
-            for s = fieldnames(B)'
+           if ~isa(B,'basis')
+               B = basis.make(B);
+           end
+            
+            
+            for s = fieldnames(basis)'
                 s1 = char(s);
                 F.(s1) = B.(s1);
             end
             
-            F.Phi = B.Interpolation;
-            F.Phiinv = (F.Phi'*F.Phi)\F.Phi';
-            F.fnodes = fnodes;
-            F.df = size(fnodes,2);
-            
-            if nargin>2
-                F.fnames = fnames;
+            switch F.type
+                case 'Chebyshev'
+                    F.Phi = B.Interpolation;
+                    F.Phiinv = (F.Phi'*F.Phi)\F.Phi';
+                case 'Spline'
+                    F.Phi = B.Interpolation;
             end
             
+            switch nargin
+                case 1
+                    F.fnodes = zeros(size(F.nodes,1),1);
+                    F.fnames = {'F1'};
+                    return;
+                case 2
+                    F.fnodes = fnodes;
+                    F.fnames = strcat('F',num2cell(48 + (1:F.df)));
+                    return;
+                    
+                case 3
+                    if ischar(fnames)
+                        fnames = {fnames};
+                    end
+                    
+                    if ~isempty(fnodes)
+                        F.fnodes = fnodes;
+                        F.fnames = fnames;
+                    else
+                        F.fnames = fnames;
+                        F.fnodes = zeros(size(F.nodes,1),1);
+                    end
+            end
         end
         
-        %% set.fnodes
+        %% SETTERS for fnodes and coef
         function set.fnodes(F,value)
-            %%%
-            % Setting new values for fnodes also update the interpolation coefficients
             assert(size(value,1) == size(F.nodes,1), ...
                 'funcApprox:fnodes:size',...
                 'New value for fnodes must have %d rows (1 per node)',size(F.nodes,1))
-            F.fnodes = value;
-            F.updateCoef;
+            F.fnodes_ = value;
+            F.fnodes_is_outdated = false;
+            F.coef_is_outdated = true;
         end
         
         
-        %% updateCoef
-        function updateCoef(F)
-            %%% 
-            % To update coefficients, the inverse interpolation matrix is premultiplied by
-            % the value of the function at the nodes
-            F.df = size(F.fnodes,2);
-            F.coef = F.Phiinv * F.fnodes;
+       function set.coef(F,value)
+            assert(size(value,1) == size(F.Phi,2), ...
+                'funcApprox:coef:size',...
+                'New value for coef must have %d rows (1 per polynomial)',size(F.Phi,2))
+            F.coef_ = value;
+            F.coef_is_outdated = false;
+            F.fnodes_is_outdated = true;
+        end
+        
+        
+        %% GETTERS for fnodes and coef
+        function Fval = get.fnodes(F)
+            if F.fnodes_is_outdated
+                F.fnodes_ =  F.Phi * F.coef_;
+                F.fnodes_is_outdated = false;
+            end
+            Fval = F.fnodes_;
+        end
+        
+        function Fcoef = get.coef(F)
+            if F.coef_is_outdated
+                switch F.type
+                    case 'Chebyshev'
+                        F.coef_ = F.Phiinv * F.fnodes;
+                    case 'Spline'
+                        F.coef_ = F.Phi \ F.fnodes;
+                end
+                F.coef_is_outdated = false;
+            end
+            Fcoef = F.coef_;
+        end
+        
+        function dfval = get.df(F)
+            dfval = size(F.fnodes,2);
         end
         
         
@@ -137,14 +203,16 @@ classdef funcApprox < basis
             end
             
             Phix = F.Interpolation(varargin{:});
-            
             nx = size(Phix,1);  % number of evaluation points
             no = size(Phix,3);  % number of order evaluations
-            
             y = zeros(nx,F.df,no);
             
-            for h = 1:no
-                y(:,:,h) = Phix(:,:,h) * F.coef;
+            if no==1  %horrible, but necessary because sparse cannot have 3 indices!
+                y = Phix * F.coef;
+            else
+                for h = 1:no
+                    y(:,:,h) = Phix(:,:,h) * F.coef;
+                end
             end
             
             if F.df==1  % only one function
@@ -156,7 +224,7 @@ classdef funcApprox < basis
         
         
         %% Jacobian
-        function [DY,Y] = Jacobian(F, x, index,permuted)
+        function [DY,Y] = Jacobian(F, x, indx,indy, permuted)
             %%%
             %   [DY,Y] = F.Jacobian(x, index)
             %
@@ -175,6 +243,15 @@ classdef funcApprox < basis
             % for speed if both Jacobian and
             % funcion value are required).
                      
+            %%%
+            % Restrict function to compute
+            if nargin<5 || isempty(indy)
+                COEF = F.coef;
+            else
+                COEF = F.coef(:,indy);
+            end
+            
+            
             
             %%%
             % Solve for the one-dimensional basis
@@ -182,11 +259,11 @@ classdef funcApprox < basis
             if F.d==1
                 if nargout == 1
                     Phix  = F.Interpolation(x,1,false);
-                    DY = Phix * F.coef;
+                    DY = Phix * COEF;
                 else
                     Phix = F.Interpolation(x,[1;0],false);
-                    DY = Phix(:,:,1) * F.coef;
-                    Y = Phix(:,:,2) * F.coef;
+                    DY = Phix(:,:,1) * COEF;
+                    Y = Phix(:,:,2) * COEF;
                 end
                 
                 return
@@ -200,20 +277,25 @@ classdef funcApprox < basis
             
             %%%
             % Keep track of required derivatives: Required is logical with true indicating derivative is required
-            if nargin<3 || isempty(index)
+            if nargin<3 || isempty(indx)
                 Required = true(1,F.d);
-                index = 1:F.d;
-            elseif numel(index) < F.d % assume that index have scalars of the desired derivatives
+                indx = 1:F.d;
+            elseif numel(indx) < F.d % assume that index have scalars of the desired derivatives
                 Required = false(1,F.d);
-                Required(index) = true;
+                Required(indx) = true;
             else % assume that index is nonzero for desired derivatives
-                Required = logical(index);
-                index = find(index);
+                Required = logical(indx);
+                indx = find(indx);
             end
             
-            if nargin<4
+
+            
+            
+            
+            if nargin<5
                 permuted = true;
             end
+            
             
             
             
@@ -259,15 +341,15 @@ classdef funcApprox < basis
             
             for k=1:nRequired
                 Phik = Phi0;
-                Phik(:,:,index(k)) = Phi1(:,:,index(k));
+                Phik(:,:,indx(k)) = Phi1(:,:,indx(k));
                 Phix = prod(Phik,3);
-                DY(:,:,k) = Phix * F.coef;
+                DY(:,:,k) = Phix * COEF;
             end
             
             %%%
             % Compute the function if requested
             if nargout > 1
-                Y = prod(Phi0,3) * F.coef;
+                Y = prod(Phi0,3) * COEF;
             end
             
             
@@ -292,7 +374,7 @@ classdef funcApprox < basis
         
         
         %% Hessian
-        function Hy = Hessian(F,x)
+        function Hy = Hessian(F,x,indy)
             
             %%%
             %   Hy = F.Hessian(x,coef)
@@ -304,6 +386,16 @@ classdef funcApprox < basis
             % * |x|, k.d matrix of evaluation points.
             %
             % Its output |Hy| returns the k.m.d.d Hessian evaluated at |x|.
+            
+            
+            if nargin<3 || isempty(indy)
+                COEF = F.coef;
+            else
+                COEF = F.coef(:,indy);
+            end
+
+            
+            
             
                         
             order = repmat({[0 1 2]'},1,F.d);
@@ -322,9 +414,9 @@ classdef funcApprox < basis
             for k = 1:size(order,1)
                 i = find(order(k,:));
                 if numel(i)==1
-                    Hy(:,:,i,i) = Phix(:,:,k) * F.coef;%  Dy(:,k);
+                    Hy(:,:,i,i) = Phix(:,:,k) * COEF;%  Dy(:,k);
                 else
-                    Hy(:,:,i(1),i(2)) = Phix(:,:,k) * F.coef; %Dy(:,k);
+                    Hy(:,:,i(1),i(2)) = Phix(:,:,k) * COEF; %Dy(:,k);
                     Hy(:,:,i(2),i(1)) = Hy(:,:,i(1),i(2)); %Dy(:,k);
                 end
             end

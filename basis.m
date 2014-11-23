@@ -17,7 +17,7 @@
 % * |B1|:   1.d array of unidimensional bases
 % * |nodes|: matrix with d columns,basis nodes
 % * |opts|:  structure with options for chosen type
-% * |type|:  basis type, i.e. 'cheb','spli', or 'lin'
+% * |type|:  basis type, i.e. 'Chebyshev','spli', or 'lin'
 %
 % Object of class |basis| have the following methods:
 %
@@ -32,11 +32,11 @@
 %
 % *NOTE 1*: Objects created by this class are derived from the superclass
 % 'matlab.mixin.Copyable', which is equivalent to a 'handle' but adds a 'copy' method for
-% making shallow copies of the basis. For example, in copying basis B with 
-% 
+% making shallow copies of the basis. For example, in copying basis B with
+%
 %   B1 = B
 %   B2 = B.copy
-% 
+%
 % the B1 variable is just a reference to B (then, subsequent changes to B1 also affect B),
 % whereas B2 is a value copy of B (thus, changes to B2 will not affect B).
 %
@@ -97,7 +97,7 @@ classdef basis < matlab.mixin.Copyable
             %
             % To choose the type of basis and to set names for its dimensions:
             %
-            % * |opts.type|: ('cheb'),'spli', or 'lin'; type of basis
+            % * |opts.type|: ('Chebyshev'),'spli', or 'lin'; type of basis
             % * |opts.varnames|: 1.d cell of strings, variable names ({'V1',V2'...})
             %
             % For Chebyshev basis, the type of nodes is specified by
@@ -113,7 +113,7 @@ classdef basis < matlab.mixin.Copyable
             %
             % * |opts.method|:  ('tensor'), 'smolyak', 'complete', 'cluster', or 'zcluster'
             % * |opts.nodeParam|: adjust selection of nodes, for methods 'smolyak',
-            % 'cluster', and 'zcluster', default is 2 for 'smolyak', 0 otherwise.            
+            % 'cluster', and 'zcluster', default is 2 for 'smolyak', 0 otherwise.
             % * |opts.degreeParam|: adjust polynomial degrees for all methods (except
             % 'tensor'), default is nodeParam for 'smolyak' and max(n-1) otherwise.
             %
@@ -153,23 +153,26 @@ classdef basis < matlab.mixin.Copyable
             end
             
             if isfield(opts,'type')
-                temptype = lower(opts.type);
-                opts.type = temptype(1:4);
+                opts.type = validatestring(opts.type,{'Chebyshev','Spline'});
             else
-                opts.type = 'cheb';
+                opts.type = 'Chebyshev';
             end
             
             
             if ~isfield(opts,'varnames'), opts.varnames = strcat('V',num2cell(48 + (1:B.d)));end
             
             switch opts.type
-                case 'cheb'
+                case 'Chebyshev'
                     % Set default type of nodes
                     if ~isfield(opts,'nodetype'), opts.nodetype = 'gaussian'; end
                     
                     % If more than one dimension
                     if B.d >1
                         if ~isfield(opts,'method'), opts.method = 'tensor'; end
+                        
+                        validMethods = {'tensor' 'complete' 'smolyak' 'cluster' 'zcluster'};
+                        opts.method = validatestring(opts.method,validMethods);
+                        
                         
                         switch opts.method
                             case 'smolyak'
@@ -200,6 +203,14 @@ classdef basis < matlab.mixin.Copyable
                                 
                         end
                     end
+                    
+                case 'Spline'
+                    if ~isfield(opts,'k'), opts.k = 3; end
+                    opts.nodetype = 'cardinal';
+                    opts.method = 'tensor';
+                    
+                    
+                    %if ~isfield(opts,'nodetype'),opts.nodetype = 'cardinal'; end
             end
             
             
@@ -209,9 +220,13 @@ classdef basis < matlab.mixin.Copyable
             % Create the 1-basis
             
             switch opts.type
-                case 'cheb'
+                case 'Chebyshev'
                     for i = 1: B.d
                         B1_(i) = basisChebyshev(n(i),a(i),b(i),opts.nodetype,opts.varnames{i});
+                    end
+                case 'Spline'
+                    for i = 1: B.d
+                        B1_(i) = basisSpline(n(i),a(i),b(i),opts.k,opts.varnames{i});
                     end
                 otherwise
                     error('Method not yet implemented')
@@ -273,6 +288,15 @@ classdef basis < matlab.mixin.Copyable
             % * 'cluster' and 'zcluster' compute clusters of the tensor nodes based on |B.opts.nodeParam|
             
             
+            if B.d==1
+                B.nodes = B.B1(1).nodes;
+                return
+            end
+            
+            
+            
+            
+            
             %%%
             % Smolyak interpolation: Now it is done by SmolyakGrid function. Previous
             % implementation computed full tensor product and then selected the valid
@@ -321,21 +345,21 @@ classdef basis < matlab.mixin.Copyable
                     degValid = (deg <= B.opts.degreeParam);
                     idx = deg_grid + 1;  % index of entries
                     B.opts.validPhi = idx(degValid,:);
-%{                    
+                    %{
 %                 case 'smolyak'
 %                     if B.opts.nodeParam < B.opts.degreeParam
 %                         warning('Smolyak degree param cannot be bigger than node param; adjusting degree');
 %                         B.opts.degreeParam = B.opts.nodeParam;
 %                     end
-%                     
+%
 %                     ngroups = log2(B.n-1)+1;
 %                     N = max(ngroups);
-%                     
+%
 %                     %%%
 %                     % Make grid that identifies node groups, save it in "g"
 %                     k = (0:2^(N-1))';
 %                     g = zeros(size(k));
-%                     
+%
 %                     p2 = 2;
 %                     for it=N:-1:3
 %                         odds = logical(mod(k,p2));
@@ -343,28 +367,28 @@ classdef basis < matlab.mixin.Copyable
 %                         k(odds) = 0;
 %                         p2 = 2*p2;
 %                     end
-%                     
+%
 %                     g(1) = 2;
 %                     g(end) = 2;
 %                     g((1+end)/2) = 1;
-%                     
+%
 %                     clear k p2 it N
-%                     
-%                     
+%
+%
 %                     %%%
 %                     % Make disjoint sets
 %                     groups = cell(1,B.d);
 %                     sortedGroups = cell(1,B.d);
-%                     
+%
 %                     for i=1:B.d
 %                         groups{1,i} = g(g <= ngroups(i));
 %                         sortedGroups{1,i} = sort(groups{1,i});
 %                     end
-%                     
+%
 %                     %%%
 %                     % Tensor product of polynomial groups
 %                     phiGroupAll = gridmake(sortedGroups{:});
-%                     
+%
 %                     %%%
 %                     % Select Smolyak bases
 %                     if isscalar (B.opts.degreeParam)
@@ -373,13 +397,13 @@ classdef basis < matlab.mixin.Copyable
 %                     else
 %                         %anisotropic grid
 %                         mu = max(B.opts.degreeParam);
-%                         
+%
 %                         validPhi = (sum(phiGroupAll,2)<= B.d + mu) & ...
 %                             all(phiGroupAll <= repmat(B.opts.degreeParam + 1, prod(B.n),1),2);
 %                     end
-%                         
+%
 %                     B.opts.validPhi = idxAll(validPhi,:);  % index of entries
-%}                    
+                    %}
                     
                 otherwise
                     error(...
@@ -388,36 +412,36 @@ classdef basis < matlab.mixin.Copyable
             
             
             %%%
-            % Expanding nodes: tensor product of nodes            
+            % Expanding nodes: tensor product of nodes
             nodes_tensor = gridmake({B.B1.nodes});
             
             switch lower(B.opts.method)
                 case {'tensor', 'complete'}
                     B.nodes = nodes_tensor;
                     B.opts.validX = idxAll;  % index of entries
-                    
+                    %{
 %                 case 'smolyak'
-%                     %%% 
+%                     %%%
 %                     % Make tensor grid of groups
 %                     groups_tensor = gridmake(groups{:});
-%                     
+%
 %                     %%%
-%                     % Select Smolyak nodes, 
-%                     
+%                     % Select Smolyak nodes,
+%
 %                     if isscalar(B.opts.nodeParam)
-%                         %isotropic grid                 
+%                         %isotropic grid
 %                         validNodes = (sum(groups_tensor,2)<= B.d + B.opts.nodeParam);
 %                     else
 %                         %anisotropic grid
 %                         mu = max(B.opts.nodeParam);
-%                         
+%
 %                         validNodes = (sum(groups_tensor,2)<= B.d + mu)  &...
 %                             all(groups_tensor <= repmat(B.opts.nodeParam + 1, prod(B.n),1),2);
 %                     end
-%                     
+%
 %                     B.nodes = nodes_tensor(validNodes,:);
 %                     B.opts.validX = idxAll(validNodes,:);  % index of entries
-                    
+                    %}
                     
                 case {'cluster','zcluster'}
                     H = size(B.opts.validPhi,1) + B.opts.nodeParam;  % number of clusters
@@ -452,6 +476,17 @@ classdef basis < matlab.mixin.Copyable
         function disp(B)
             %%%
             % Prints a summary of the basis
+            
+            if numel(B) > 1
+                fprintf('\nArray of %s objects with %d elements\n',class(B),numel(B))
+                return
+            end
+            
+            
+            if isempty(B.n)
+                fprintf('\nEmpty %s\n',class(B))
+                return
+            end
             
             switch class(B)
                 case 'basis'
@@ -533,7 +568,7 @@ classdef basis < matlab.mixin.Copyable
             if nargin<2; x = [];             end  % evaluate at nodes
             if nargin<3 || isempty(order); order = zeros(1,B.d); end  % no derivative
             if isscalar(order); order = order*ones(1,B.d); end  % use same in all dimension
-            assert(all(order>=0), 'order must be nonnegative')
+            assert(all(order(:)>=0), 'order must be nonnegative')
             if nargin<4, integrate = false; end
             
             
@@ -555,7 +590,7 @@ classdef basis < matlab.mixin.Copyable
             
             % Check validity of input x
             if nargin>1  % hasArg(x)
-                if isnumeric(x) 
+                if isnumeric(x)
                     assert(size(x,2) == B.d || isempty(x),'In Interpolation, class basis: x must have d columns');
                 end
                 if iscell(x)
@@ -590,26 +625,56 @@ classdef basis < matlab.mixin.Copyable
             c = B.opts.validPhi;
             ncols = size(c,1);
             
-            %%%
-            % Preallocate memory
-            PHI = zeros(nrows,ncols,Norders,B.d);
             
-            %%%
-            % Compute interpolation matrices for each dimension
-            for j = 1:B.d
-                if isempty(x)
-                    Phij = B.B1(j).Interpolation([],order(:,j),integrate);
-                    PHI(:,:,:,j) = Phij(r(:,j),c(:,j),:);
-                elseif iscell(x)
-                    Phij = B.B1(j).Interpolation(x{j},order(:,j),integrate);
-                    PHI(:,:,:,j) = Phij(r(:,j),c(:,j),:);
-                else
-                    Phij = B.B1(j).Interpolation(x(:,j),order(:,j),integrate);
-                    PHI(:,:,:,j) = Phij(:,c(:,j),:);
-                end
+            
+            switch B.opts.type
+                case 'Chebyshev'
+                    %%%
+                    % Preallocate memory
+                    
+                    PHI = zeros(nrows,ncols,Norders,B.d);
+                    
+                    %%%
+                    % Compute interpolation matrices for each dimension
+                    for j = 1:B.d
+                        if isempty(x)
+                            Phij = B.B1(j).Interpolation([],order(:,j),integrate);
+                            PHI(:,:,:,j) = Phij(r(:,j),c(:,j),:);
+                        elseif iscell(x)
+                            Phij = B.B1(j).Interpolation(x{j},order(:,j),integrate);
+                            PHI(:,:,:,j) = Phij(r(:,j),c(:,j),:);
+                        else
+                            Phij = B.B1(j).Interpolation(x(:,j),order(:,j),integrate);
+                            PHI(:,:,:,j) = Phij(:,c(:,j),:);
+                        end
+                    end
+                    clear Phij
+                    
+                    
+                case 'Spline'
+                    PHI = ndsparse([Norders,B.d]);
+                    % Compute interpolation matrices for each dimension
+                    for j = 1:B.d
+                        if isempty(x)
+                            Phij = B.B1(j).Interpolation([],order(:,j),integrate);
+                            for oo = 1:Norders
+                                PHI{oo,j} = Phij{oo}(r(:,j),c(:,j));
+                            end
+                        elseif iscell(x)
+                            Phij = B.B1(j).Interpolation(x{j},order(:,j),integrate);
+                            for oo = 1:Norders
+                                PHI{oo,j} = Phij{oo}(r(:,j),c(:,j),:);
+                            end
+                        else
+                            Phij = B.B1(j).Interpolation(x(:,j),order(:,j),integrate);
+                            for oo=1:Norders
+                                PHI{oo,j} = Phij{oo}(:,c(:,j));
+                            end
+                        end
+                    end
+                    
+                    
             end
-            clear Phij
-            
             %%%
             % MULTIPLY individual bases
             Phi = prod(PHI,4);
@@ -644,5 +709,29 @@ classdef basis < matlab.mixin.Copyable
         end
         
     end %methods
+    
+    methods (Static)
+        function BB = make(B)
+            %TODO:  How to pass user breakpoints?
+            switch class(B)
+                case 'basisChebyshev'
+                    opt.type = 'cheb';
+                    BB = basis(B.n,B.a,B.b,opt);
+                case 'basisSpline'
+                    opt.type = 'spli';
+                    opt.k = B.k;
+                    BB = basis(B.n,B.a,B.b,opt);
+                otherwise
+                    error('Cannot make a basis from a %s object',class(B));
+            end
+            
+            
+        end
+        
+        
+    end
+    
+    
+    
 end %classdef
 
