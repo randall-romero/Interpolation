@@ -105,3 +105,48 @@ xlabel(S.opts.varnames(1)), ylabel(S.opts.varnames(2)), zlabel('Residual')
 % around half the number of nodes and bases functions (i.e., its interpolation matrix is around one-forth the size of
 % the tensor interpolating matrix).
 %
+
+
+%% Using a Cubic Spline basis
+% Now repeat the exercise with Smolyak nodes, with degree and node parameters set to q = 3. Call the basis |S|
+%
+opts = struct;
+opts.type = 'spline';
+opts.k = 3;
+opts.varnames = {'capital','labor'};
+
+Z = basis([32 20],[0 0],[2 1],opts);
+disp(Z)
+
+%%%
+% Notice the warning about the number of Smolyak nodes: The number of nodes for each dimension must be n = 2^k+1
+% for some positive integer k. If user calls the constructor with different number of nodes, the constructor increases n
+% to the next admissible value (from 80 to 129 for capital, and from 50 to 65 for labor).
+
+
+
+%%
+% The level of production at the new collocation nodes is
+yZnodes = y(Z.nodes(:,1),Z.nodes(:,2));
+
+%%
+% The approximated function, using basis S, is
+yZ = funcApprox(Z,yZnodes);
+
+%%
+% Plot the functions
+yZapprox = reshape(yZ.Interpolate([kk(:),ll(:)]),ngrid,ngrid);
+
+figure
+subplot(2,1,1), surf(kk,ll,yy,'EdgeColor','none')
+hold on
+surf(kk,ll,ySapprox,'EdgeColor','none')
+axis tight
+xlabel(Z.opts.varnames(1)), ylabel(Z.opts.varnames(2)), zlabel('Production')
+
+
+subplot(2,1,2), surf(kk,ll,ySapprox - yy,'EdgeColor','none')
+title('Residuals using 640 nodes, cubic spline'), axis tight
+xlabel(Z.opts.varnames(1)), ylabel(Z.opts.varnames(2)), zlabel('Residual')
+
+
