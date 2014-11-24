@@ -168,9 +168,10 @@ classdef interpolator < basis
             xx = F.nodes;
         end
         
+               
         
         %% Interpolate
-        function Y = Interpolate(F,...
+        function varargout = Interpolate(F,...
                 varargin... inputs for interpolation method
                 )
             
@@ -192,8 +193,11 @@ classdef interpolator < basis
             % the number of evaluation points, m the number of functions (number of
             % columns in |f.c|), and h is number of order derivatives.
             
+            varargout = cell(1,nargout);
+            
             if nargin <2
                 Y = F.y;
+                varargout{1} = Y;
                 return
             end
             
@@ -213,6 +217,13 @@ classdef interpolator < basis
             if F.size==1  % only one function
                 Y = squeeze(Y);
             end
+            
+            varargout{1} = Y;
+            
+            for j=2:nargout
+                varargout{j} = 'work in progress';
+            end
+            
             
         end %Evaluate
         
@@ -422,13 +433,13 @@ classdef interpolator < basis
         
         %% subsref
         
-        function sref = subsref(F,s)
+        function varargout = subsref(F,s)
             switch s(1).type
                 case '.'
-                    sref = builtin('subsref',F,s);
+                    [varargout{1:nargout}] = builtin('subsref',F,s);
                     return
                 case '()'
-                    sref = F.Interpolate(s(1).subs{:}); % TODO: Vargout
+                    [varargout{1:nargout}]  = F.Interpolate(s(1).subs{:}); % TODO: Vargout
                     return
                 case '{}'
                     if numel(s)==1
@@ -438,7 +449,7 @@ classdef interpolator < basis
                         else
                             sref.y = F.fnodes_(:,s.subs{:});
                         end
-                        
+                        varargout{1} = sref;
                         return
                     else
                         switch s(2).type
@@ -449,13 +460,13 @@ classdef interpolator < basis
                                     case {'y','c'}
                                         if numel(s)==2
                                             s2 = substruct('.',s(2).subs,'()',[{':'} s(1).subs]);
-                                            sref = builtin('subsref',F,s2);
+                                            varargout{1} = builtin('subsref',F,s2);
                                             return
                                         else
                                             error('Too many index levels');
                                         end
                                     otherwise
-                                        sref = builtin('subsref',F,s(2));
+                                        varargout{1} = builtin('subsref',F,s(2));
                                 end
                         end
                     end
