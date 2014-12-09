@@ -453,7 +453,7 @@ classdef basisChebyshev < matlab.mixin.Copyable
             end
             x = linspace(B.a,B.b,1+min(120,10*B.n))';
             Phi = B.Interpolation(x);
-            Phi = Phi{1};
+            if iscell(Phi), Phi = Phi{1}; end
             hold off
             plot(x,0*x,'k'); hold on
             plot(x,Phi(:,ii),'LineWidth',1.75)
