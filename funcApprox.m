@@ -160,9 +160,9 @@ classdef funcApprox < basis
             if F.coef_is_outdated
                 switch F.type
                     case 'Chebyshev'
-                        F.coef_ = F.Phiinv * F.fnodes;
+                        F.coef_ = F.Phiinv * F.fnodes_;
                     case 'Spline'
-                        F.coef_ = F.Phi \ F.fnodes;
+                        F.coef_ = F.Phi \ F.fnodes_;
                 end
                 F.coef_is_outdated = false;
             end
