@@ -147,6 +147,22 @@ classdef ndsparse
             end
             
         end
+        
+        function F = full(S)
+            sz = size(S.A);
+            
+            if prod(sz,2) ==1
+                F = full(S.A{1});
+            else
+                F = zeros([size(S.A{1}),sz]);
+                for j=1:sz
+                    F{:,:,j} = full(S.A{j});
+                end
+            end
+        end
+        
+        
+        
     end
 end
 
