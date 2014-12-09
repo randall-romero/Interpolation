@@ -69,6 +69,7 @@ classdef basis < matlab.mixin.Copyable
         nodes       % nodes for d-dimensions
         opts        % options for basis of given type
         type        % type of basis
+        N           % total number of nodes
     end
     
     
@@ -244,6 +245,12 @@ classdef basis < matlab.mixin.Copyable
             B.opts.nodetype = B1_(1).nodetype;
             B.opts = opts;
             B.ExpandBasis;
+            
+            if B.d > 1
+                B.N = size(B.opts.validX,1);
+            else
+                B.N = B.n;
+            end
         end %basis
         
         
@@ -510,7 +517,7 @@ classdef basis < matlab.mixin.Copyable
             
             if B.d>1
                 fprintf('\t%-22s %-12s\n','Expansion method:',B.opts.method)
-                fprintf('\t%-22s %-12.0f\n','Total basis nodes:',size(B.opts.validX,1))
+                fprintf('\t%-22s %-12.0f\n','Total basis nodes:',B.N)
                 fprintf('\t%-22s %-12.0f\n','Total basis functions:',size(B.opts.validPhi,1))
             end
             fprintf('\n\n')
