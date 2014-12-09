@@ -5,7 +5,7 @@
 % identify a function and methods to interpolate, compute Jacobian and Hessian.
 %
 %
-% Apart from the properties inherited from <basis.m basis>, objects of class |funcApprox|
+% Apart from the properties inherited from <basis.m basis>, objects of class |interpolator|
 % have the following properties:
 %
 % * |y|: value of interpolated function at basis nodes
@@ -41,7 +41,7 @@ classdef interpolator < basis
         x    % basis nodes
     end
     
-    properties %(Access = private)
+    properties (Access = protected)
         fnodes_  % stored values for function at nodes
         coef_    % stored coefficients
         fnodes_is_outdated % if true, calling "y" updates fnodes_ before returning values
@@ -89,6 +89,8 @@ classdef interpolator < basis
             % Compute inverse of interpolation matrix, (not if Spline)
             if strcmp(F.type, 'Chebyshev')
                 F.Phiinv = (F.Phi'*F.Phi)\F.Phi';
+            else
+                F.Phi = F.Phi(:,:);
             end
             
             % Default values
@@ -131,7 +133,7 @@ classdef interpolator < basis
         % updated using the other variable and then returned.
         function Fval = get.y(F)
             if F.fnodes_is_outdated
-                F.fnodes_ =  reshape(F.Phi * reshape(F.coef_,F.n,prod(F.size)),size(F.coef_));
+                F.fnodes_ =  reshape(F.Phi * reshape(F.coef_,F.N,prod(F.size)),size(F.coef_));
                 F.fnodes_is_outdated = false;
             end
             Fval = F.fnodes_;
@@ -141,9 +143,9 @@ classdef interpolator < basis
             if F.coef_is_outdated
                 switch F.type
                     case 'Chebyshev'
-                        F.coef_ = reshape(F.Phiinv * reshape(F.fnodes_,F.n,prod(F.size)),size(F.fnodes_));
+                        F.coef_ = reshape(F.Phiinv * reshape(F.fnodes_,F.N,prod(F.size)),size(F.fnodes_));
                     case 'Spline'
-                        F.coef_ = reshape(F.Phi \ reshape(F.fnodes_,F.n,prod(F.size)),size(F.fnodes_));
+                        F.coef_ = reshape(F.Phi \ reshape(F.fnodes_,F.N,prod(F.size)),size(F.fnodes_));
                 end
                 F.coef_is_outdated = false;
             end
@@ -163,6 +165,10 @@ classdef interpolator < basis
             end
             sz(1) = [];
         end
+        
+%          function num = numel(F)
+%              num = prod(size(F),2);
+%          end
         
         function xx = get.x(F)
             xx = F.nodes;
@@ -198,32 +204,48 @@ classdef interpolator < basis
             if nargin <2
                 Y = F.y;
                 varargout{1} = Y;
-                return
+                if nargout ==1, return,end
             end
             
-            Phix = F.Interpolation(varargin{:});
-            nx = size(Phix,1);  % number of evaluation points
-            no = size(Phix,3);  % number of order evaluations
-            Y = zeros(nx,F.size,no);
-            
-            if no==1  %horrible, but necessary because sparse cannot have 3 indices!
-                Y = Phix * F.c;
-            else
-                for h = 1:no
-                    Y(:,:,h) = Phix(:,:,h) * F.c;
-                end
+            if nargout > 1 && nargin > 2
+                warning('If calling Interpolate with more than one output variables, then ''order'' and ''integrate'' are ignored')
             end
             
-            if F.size==1  % only one function
-                Y = squeeze(Y);
+            switch nargout
+                case 1
+                    Phix = F.Interpolation(varargin{:});
+                    nx = size(Phix,1);  % number of evaluation points
+                    no = size(Phix,3);  % number of order evaluations
+                    Y = zeros(nx,F.size,no);
+                    
+
+                    for h = 1:no
+                        Y(:,:,h) = Phix(:,:,h) * F.c;
+                    end
+
+                    
+                    if F.size==1  % only one function
+                        Y = squeeze(Y);
+                    end
+                    
+                    varargout{1} = Y;
+                case 2
+                    if nargin<2;
+                        x = F.nodes;
+                    else
+                        x = varargin{1};    
+                    end
+                    [varargout{2}, varargout{1}] = Jacobian(F, x,[],[],false);
+                case 3
+                    if nargin<2;   
+                        x = F.nodes; 
+                    else
+                        x = varargin{1};
+                    end
+                    [varargout{2}, varargout{1}] = Jacobian(F, x,[],[],false);
+                    varargout{3} = Hessian(F,x);
             end
-            
-            varargout{1} = Y;
-            
-            for j=2:nargout
-                varargout{j} = 'work in progress';
-            end
-            
+                    
             
         end %Evaluate
         
@@ -252,10 +274,10 @@ classdef interpolator < basis
             %%%
             % Restrict function to compute
             if nargin<5 || isempty(indy)
-                COEF = F.c;
+                COEF = reshape(F.c,F.N,[]);
             elseif isa(indy,'cell')
                 COEF = F.c(:,indy{:});
-                COEF = reshape(COEF,F.n,[]);
+                COEF = reshape(COEF,F.N,[]);
             else
                 COEF = F.c(:,indy);
             end
@@ -344,7 +366,7 @@ classdef interpolator < basis
             %%%
             % Compute the Jacobian
             % Preallocate memory
-            DY  = zeros(Nrows,F.size,nRequired);
+            DY  = zeros(Nrows,prod(F.size),nRequired);
             
             % Multiply the 1-dimensional bases
             
@@ -398,9 +420,9 @@ classdef interpolator < basis
             
             
             if nargin<3 || isempty(indy)
-                COEF = F.c;
+                COEF = reshape(F.c,F.N,[]);
             else
-                COEF = F.c(:,indy);
+                COEF = reshape(F.c(:,indy),F.n,[]);
             end
             
             
@@ -418,7 +440,7 @@ classdef interpolator < basis
             
             %Dy = squeeze(Dy);
             
-            Hy = zeros(nx,F.size,F.d,F.d);
+            Hy = zeros(nx,prod(F.size),F.d,F.d);
             
             for k = 1:size(order,1)
                 i = find(order(k,:));
@@ -434,12 +456,14 @@ classdef interpolator < basis
         %% subsref
         
         function varargout = subsref(F,s)
+            NARGOUT = max(1,nargout);
+            
             switch s(1).type
                 case '.'
-                    [varargout{1:nargout}] = builtin('subsref',F,s);
+                    [varargout{1:NARGOUT}] = builtin('subsref',F,s);
                     return
                 case '()'
-                    [varargout{1:nargout}]  = F.Interpolate(s(1).subs{:}); % TODO: Vargout
+                    [varargout{1:NARGOUT}]  = F.Interpolate(s(1).subs{:}); % TODO: Vargout
                     return
                 case '{}'
                     if numel(s)==1
@@ -454,7 +478,13 @@ classdef interpolator < basis
                     else
                         switch s(2).type
                             case '()'
-                                error('TBD: should call interpolate with restricted values of coefficients, instead of making copy of F');
+%                                 warning('Work-in-progress: should call interpolate with restricted values of coefficients, instead of making copy of F');
+                                F2 = subsref(F,substruct('{}',s(1).subs));                                 
+                                [varargout{1:NARGOUT}]  = F2.Interpolate(s(2).subs{:}); % TODO: Vargout
+                                return
+                                
+                                
+                                
                             case '.'
                                 switch s(2).subs
                                     case {'y','c'}
@@ -482,8 +512,9 @@ classdef interpolator < basis
                     return
                 case '()'
                     if numel(s)==1
-                        s2 = substruct('.','y','()',[{':'},s.subs]);
-                        F = builtin('subsasgn',F,s2,val);
+                        F.y(:,s.subs{:}) = val;
+%                         s2 = substruct('.','y','()',[{':'},s.subs]);
+%                         F = builtin('subsasgn',F,s2,val);
                         return
                     else
                         switch s(2).type
